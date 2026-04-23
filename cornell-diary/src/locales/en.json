@@ -1,0 +1,70 @@
+{
+  "app": {
+    "name": "Cornell Diary",
+    "loading": "Loading…",
+    "error": "An error occurred"
+  },
+  "nav": {
+    "today": "Today",
+    "prev": "Previous day",
+    "next": "Next day",
+    "archive": "Archive",
+    "settings": "Settings",
+    "sync": "Sync"
+  },
+  "diary": {
+    "mainPlaceholder": "What happened today? Your thoughts, feelings…",
+    "summaryLabel": "Daily summary",
+    "summaryPlaceholder": "In a sentence or two…",
+    "quoteLabel": "Quote of the day",
+    "quotePlaceholder": "A line that stuck with you…",
+    "empty": "Nothing written for this day yet.",
+    "wordCount": "{count} words"
+  },
+  "cue": {
+    "add": "Add section",
+    "addPlaceholder": "Section name (e.g. Plans, Feelings)",
+    "addButton": "Add",
+    "remove": "Remove",
+    "maxReached": "You can add at most {max} sections.",
+    "contentPlaceholder": "Notes…"
+  },
+  "save": {
+    "saved": "Saved",
+    "saving": "Saving…",
+    "dirty": "Unsaved"
+  },
+  "archive": {
+    "title": "Archive",
+    "empty": "No entries yet.",
+    "count": "{count} days"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeAuto": "Auto",
+    "language": "Language",
+    "languageTR": "Türkçe",
+    "languageEN": "English",
+    "autoSave": "Auto-save interval"
+  },
+  "sync": {
+    "title": "Sync",
+    "exportTitle": "Export (JSON)",
+    "exportDescription": "Export all entries as a plain JSON file.",
+    "exportAction": "Save to File",
+    "importTitle": "Import (JSON)",
+    "importDescription": "Import a JSON file. Merged with existing entries.",
+    "importAction": "Choose File",
+    "qrSendTitle": "Send via QR",
+    "qrSendDescription": "Send the archive to another device via QR codes.",
+    "qrSendAction": "Generate QR",
+    "qrScanTitle": "Scan QR",
+    "qrScanDescription": "Scan QR codes from another device.",
+    "qrScanAction": "Start Scan",
+    "result": "Result: {inserted} inserted, {skipped} already existed (skipped)",
+    "checksumWarning": "Checksum mismatch — import anyway?"
+  }
+}

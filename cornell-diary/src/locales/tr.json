@@ -1,0 +1,70 @@
+{
+  "app": {
+    "name": "Cornell Diary",
+    "loading": "Yükleniyor…",
+    "error": "Bir hata oluştu"
+  },
+  "nav": {
+    "today": "Bugün",
+    "prev": "Önceki gün",
+    "next": "Sonraki gün",
+    "archive": "Arşiv",
+    "settings": "Ayarlar",
+    "sync": "Senkronizasyon"
+  },
+  "diary": {
+    "mainPlaceholder": "Bugün neler yaşandı? Hislerin, düşüncelerin…",
+    "summaryLabel": "Günün özeti",
+    "summaryPlaceholder": "Bir iki cümleyle…",
+    "quoteLabel": "Günün sözü",
+    "quotePlaceholder": "İçinde kalmış bir söz, bir alıntı…",
+    "empty": "Bu gün için henüz bir şey yazılmamış.",
+    "wordCount": "{count} kelime"
+  },
+  "cue": {
+    "add": "Başlık ekle",
+    "addPlaceholder": "Başlık adı (ör. Planlar, Hissiyat)",
+    "addButton": "Ekle",
+    "remove": "Sil",
+    "maxReached": "En fazla {max} başlık ekleyebilirsin.",
+    "contentPlaceholder": "Notlar…"
+  },
+  "save": {
+    "saved": "Kaydedildi",
+    "saving": "Kaydediliyor…",
+    "dirty": "Kaydedilmedi"
+  },
+  "archive": {
+    "title": "Arşiv",
+    "empty": "Henüz kayıt yok.",
+    "count": "{count} gün"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "theme": "Tema",
+    "themeLight": "Açık",
+    "themeDark": "Koyu",
+    "themeAuto": "Otomatik",
+    "language": "Dil",
+    "languageTR": "Türkçe",
+    "languageEN": "English",
+    "autoSave": "Otomatik kayıt süresi"
+  },
+  "sync": {
+    "title": "Senkronizasyon",
+    "exportTitle": "Dışa Aktar (JSON)",
+    "exportDescription": "Tüm günlük kayıtlarını şifrelenmemiş JSON dosyası olarak dışa aktar.",
+    "exportAction": "Dosyaya Aktar",
+    "importTitle": "İçe Aktar (JSON)",
+    "importDescription": "Bir JSON dosyasını içe aktar. Mevcut kayıtlarla birleşir.",
+    "importAction": "Dosya Seç",
+    "qrSendTitle": "QR Gönder",
+    "qrSendDescription": "Arşivi başka bir cihaza QR üzerinden gönder.",
+    "qrSendAction": "QR Oluştur",
+    "qrScanTitle": "QR Tara",
+    "qrScanDescription": "Başka bir cihazdaki QR'ı tarayarak veri al.",
+    "qrScanAction": "Taramayı Başlat",
+    "result": "Sonuç: {inserted} yeni eklendi, {skipped} zaten vardı (atlandı)",
+    "checksumWarning": "Veri bütünlüğü uyumsuz — yine de içeri aktar?"
+  }
+}

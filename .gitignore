@@ -1,0 +1,10 @@
+.DS_Store
+
+# Internal workspace notes (not meant to ship with the repo)
+CORNELL_DIARY_CLAUDE_CODE_PROMPT.md
+
+# Build artifacts are committed to GitHub Releases, not into the repo
+*.apk
+*.aab
+*.dmg
+*.app
