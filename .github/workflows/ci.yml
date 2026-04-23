@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+defaults:
+  run:
+    working-directory: cornell-diary
+
 jobs:
   frontend:
     name: Frontend (typecheck + test + build)
@@ -21,6 +25,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: cornell-diary/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -53,6 +58,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: cornell-diary/pnpm-lock.yaml
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -60,7 +66,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: cornell-diary/src-tauri
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
