@@ -4,6 +4,7 @@ import { ArchivePage } from './pages/ArchivePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SyncPage } from './pages/SyncPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { MigrationOnboarding } from './pages/MigrationOnboarding';
 import { AppToolbar } from './components/common/AppToolbar';
 import { useTheme } from './hooks/useTheme';
 import { todayISO } from './utils/date';
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/archive" element={<ArchivePage />} />
         <Route path="/sync" element={<SyncPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/migration" element={<MigrationOnboarding />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>

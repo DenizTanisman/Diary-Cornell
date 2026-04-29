@@ -11,10 +11,12 @@ use crate::commands::entries::{
 use crate::db::{
     build_pool, run_migrations, EntryRepository, PostgresEntryRepository, SqliteEntryRepository,
 };
+use crate::migration::migrate_sqlite_to_postgres;
 
 mod commands;
 mod db;
 mod error;
+mod migration;
 
 const DB_FILENAME: &str = "cornell_diary.db";
 
@@ -79,7 +81,7 @@ pub fn run() {
             let backend = StorageBackend::from_env();
             tracing::info!(target: "cornell_diary", ?backend, "selecting storage backend");
 
-            let repo: Arc<dyn EntryRepository> = match backend {
+            let (repo, pg_pool): (Arc<dyn EntryRepository>, Option<sqlx::PgPool>) = match backend {
                 StorageBackend::Sqlite => {
                     let app_data_dir = app_handle
                         .path()
@@ -97,7 +99,7 @@ pub fn run() {
                             .await
                             .map_err(|e| anyhow::anyhow!("repo init: {e:?}"))
                     })?;
-                    r
+                    (r, None)
                 }
                 StorageBackend::Postgres => {
                     let database_url = std::env::var("DATABASE_URL").map_err(|_| {
@@ -117,11 +119,13 @@ pub fn run() {
                         Ok::<_, anyhow::Error>(pool)
                     })?;
 
-                    Arc::new(PostgresEntryRepository::new(pool))
+                    let repo: Arc<dyn EntryRepository> =
+                        Arc::new(PostgresEntryRepository::new(pool.clone()));
+                    (repo, Some(pool))
                 }
             };
 
-            app.manage(AppState { repo });
+            app.manage(AppState { repo, pg_pool });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -137,6 +141,7 @@ pub fn run() {
             diary_bulk_upsert,
             diary_get_setting,
             diary_set_setting,
+            migrate_sqlite_to_postgres,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
