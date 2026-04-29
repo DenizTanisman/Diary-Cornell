@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use sqlx::PgPool;
 use tauri::State;
 
 use crate::db::{BulkResult, DiaryEntry, EntryRepository};
@@ -13,9 +14,12 @@ use crate::error::DomainError;
 
 /// Shared application state; held by Tauri once `manage`d in `lib::run()`.
 /// `Arc<dyn EntryRepository>` lets us swap the concrete implementation at
-/// boot (FAZ 1.1 will switch to PostgresEntryRepository behind a flag).
+/// boot. `pg_pool` is `Some` only when STORAGE_BACKEND=postgres — the
+/// migration command (FAZ 1.2) reaches for it directly so it never has to
+/// downcast through the trait.
 pub struct AppState {
     pub repo: Arc<dyn EntryRepository>,
+    pub pg_pool: Option<PgPool>,
 }
 
 #[tauri::command]
