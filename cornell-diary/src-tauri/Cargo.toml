@@ -49,4 +49,5 @@ rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 [dev-dependencies]
 tokio = { version = "1.40", features = ["test-util", "macros", "rt-multi-thread"] }
 tempfile = "3.13"
+serial_test = "3"
 

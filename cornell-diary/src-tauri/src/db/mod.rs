@@ -6,9 +6,13 @@
 //! the SQLite implementation entirely.
 
 pub mod models;
+pub mod pool;
+pub mod postgres_impl;
 pub mod repository;
 pub mod sqlite_impl;
 
 pub use models::{BulkResult, DiaryEntry};
+pub use pool::{build_pool, run_migrations};
+pub use postgres_impl::PostgresEntryRepository;
 pub use repository::EntryRepository;
 pub use sqlite_impl::SqliteEntryRepository;
