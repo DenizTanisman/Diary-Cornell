@@ -8,3 +8,11 @@ CORNELL_DIARY_CLAUDE_CODE_PROMPT.md
 *.aab
 *.dmg
 *.app
+
+# SQLite snapshots taken before destructive migrations.
+# Tracked locally so we can restore but never pushed (binary, PII).
+backups/
+
+# Sibling project with its own GitHub repo (DenizTanisman/journal-ai-reporter).
+# Lives inside this directory for convenience but is not part of this repo.
+journal_ai_reporter/

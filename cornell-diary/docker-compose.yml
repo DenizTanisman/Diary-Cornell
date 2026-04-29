@@ -1,0 +1,27 @@
+# Local Postgres for Diary Cornell.
+#
+# Diary's Postgres lives on host port 5435 because port 5432 is already used
+# by another local project on this machine and 5433/5434 are taken by
+# iau_postgres / cloud_postgres respectively. The migration prompt's example
+# DATABASE_URL uses 5432; override via .env (DATABASE_URL=postgres://...:5435/...).
+services:
+  diary_postgres:
+    image: postgres:16-alpine
+    container_name: diary_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: diary_user
+      POSTGRES_PASSWORD: change_me_in_dev
+      POSTGRES_DB: diary_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - diary_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diary_user -d diary_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  diary_pg_data:
