@@ -1,59 +1,73 @@
 //! Wire-format DTOs shared between Cloud REST calls, the SyncEngine, and the
 //! Tauri commands the frontend invokes.
 //!
-//! All field names use camelCase via `#[serde(rename_all = "camelCase")]` for
-//! the data crossing the IPC boundary; the Cloud REST envelopes use
-//! snake_case (Cloud is a Python service) so request structs override that
-//! per-field with `rename = ...` where needed.
+//! Two namespaces live here:
+//! - **Cloud** REST envelopes — match the live OpenAPI spec exposed by the
+//!   sync server. Snake_case Python defaults; `serde(default)` and
+//!   `Option<…>` keep us forward-compatible with new optional fields.
+//! - **Frontend** IPC payloads — camelCase via `#[serde(rename_all)]` so the
+//!   existing TypeScript types in `src/types/cloudSync.ts` keep working.
+//!
+//! The Cloud entry shape (`cue_column`, `notes_column`, `summary`, `planlar`)
+//! is the same projection the Reporter sidecar produces. Diary stores
+//! `cue_items[]` natively; the engine flattens to / from that string in
+//! `engine.rs::push_entry_from` / `entry_from_cloud`.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// ---------------------------------------------------------------------------
-// Cloud REST request / response envelopes
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Auth
+// ===========================================================================
 
-/// Cloud's `/auth/login` validates `{ username, password }`. The frontend
-/// labels the field "Kullanıcı adı" so the user types the same handle they
-/// registered with; we pass it through verbatim.
+/// `POST /auth/login` body.
 #[derive(Debug, Clone, Serialize)]
 pub struct LoginRequest<'a> {
     pub username: &'a str,
     pub password: &'a str,
 }
 
+/// `POST /auth/refresh` body.
+#[derive(Debug, Clone, Serialize)]
+pub struct RefreshRequest<'a> {
+    pub refresh_token: &'a str,
+}
+
+/// `TokenResponse`. Cloud does NOT include `peer_id` or `user_id` here —
+/// peer_id is generated locally and persisted in sync_metadata; the user id
+/// can be fetched from `/auth/me` when needed. We keep the optional fields
+/// in case a future Cloud version starts returning them.
 #[derive(Debug, Clone, Deserialize)]
 pub struct TokenPair {
     pub access_token: String,
     pub refresh_token: String,
-    /// Cloud may include the parsed expiry as a convenience; we recompute it
-    /// from the JWT itself if the field is missing.
+    /// Cloud sends `access_ttl_seconds`; consumers compute the expiry from
+    /// JWT exp instead. Field kept in case Cloud ever sends an absolute
+    /// timestamp.
     #[serde(default)]
     pub expires_at: Option<DateTime<Utc>>,
-    /// First-time logins also return user/peer so we can persist them in
-    /// sync_metadata.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub access_ttl_seconds: Option<i64>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub token_type: Option<String>,
     #[serde(default)]
     pub user_id: Option<Uuid>,
     #[serde(default)]
     pub peer_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RefreshRequest<'a> {
-    pub refresh_token: &'a str,
-}
+// ===========================================================================
+// Journals
+// ===========================================================================
 
-/// Cloud's `JournalOut` shape. Cloud calls it `title`; we surface it as
-/// `name` to the frontend through ConnectReport for consistency with the
-/// Diary domain vocabulary, but the wire field is `title`.
+/// `JournalOut` — one journal entry from Cloud.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CloudJournal {
     pub id: Uuid,
     pub title: String,
-    /// Cloud also returns owner_id, created_at, updated_at, role — we
-    /// don't need them on the client but keep the struct lenient via
-    /// `serde(default)` on optional fields and ignore unknown ones.
     #[serde(default)]
     #[allow(dead_code)]
     pub owner_id: Option<Uuid>,
@@ -62,127 +76,135 @@ pub struct CloudJournal {
     pub role: Option<String>,
 }
 
-/// Wrapper Cloud uses for list endpoints — `{ "items": [...] }`. Without
-/// this wrapper our `Vec<CloudJournal>` deserialise fails and the connect
-/// flow silently abandons journal selection (cloud_journal_id stays NULL,
-/// next sync errors with "cloud journal not selected").
+/// `JournalListResponse` — Cloud wraps lists in `{ "items": [...] }`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct JournalListResponse {
     pub items: Vec<CloudJournal>,
 }
 
-/// Cloud's `JournalCreate` request body — single field `title` (not `name`).
+/// `JournalCreate` — single field `title` (not `name`).
 #[derive(Debug, Clone, Serialize)]
 pub struct JournalCreateRequest<'a> {
     pub title: &'a str,
 }
 
+// ===========================================================================
+// Sync — Pull
+// ===========================================================================
+
+/// `PullResponse`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PullResponse {
     pub entries: Vec<CloudEntry>,
-    /// Server-side cursor. We currently re-stamp `last_pull_at = now()`
-    /// after a successful pull rather than reading this; field is kept so
-    /// future Cloud versions can hand us a more precise watermark without a
-    /// schema change.
+    /// Char-level CRDT ops Cloud accumulated since `since`. Phase 3 will
+    /// apply these; Phase 2 ignores them and relies on the full-entry rows.
     #[serde(default)]
     #[allow(dead_code)]
-    pub cursor: Option<DateTime<Utc>>,
+    pub crdt_ops: Vec<serde_json::Value>,
+    /// Authoritative server clock at the moment the response was assembled.
+    /// We reuse this as the next pull's `since` cursor when available;
+    /// falls back to `Utc::now()` otherwise.
+    #[serde(default)]
+    pub server_time: Option<DateTime<Utc>>,
 }
 
+// ===========================================================================
+// Sync — Push
+// ===========================================================================
+
+/// `PushRequest`. peer_id is mandatory (mints a 422 from Cloud if missing
+/// or empty). idempotency_key lets Cloud dedupe on retry; we send a fresh
+/// uuid each call.
 #[derive(Debug, Clone, Serialize)]
 pub struct PushRequest {
     pub journal_id: Uuid,
+    pub peer_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
     pub entries: Vec<PushEntry>,
+    /// Char-level ops; Phase 2 always sends an empty list.
+    pub crdt_ops: Vec<serde_json::Value>,
 }
 
+/// `PushResponse`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PushResponse {
-    pub merged: Vec<MergedEntry>,
+    pub merged_entries: Vec<CloudEntry>,
     #[serde(default)]
-    pub rejected: Vec<RejectedEntry>,
+    #[allow(dead_code)]
+    pub crdt_ops_applied: i64,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub crdt_ops_skipped: i64,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub duplicate: bool,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub server_time: Option<DateTime<Utc>>,
 }
 
-/// One entry as Cloud sees it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// ===========================================================================
+// Entry shape — Cloud-side projection (cue_column, notes_column, summary, planlar)
+// ===========================================================================
+
+/// `EntryOut` — the read shape Cloud returns from pull / push merge.
+/// Diary stores `cue_items[]` natively; engine.rs converts on the way in.
+#[derive(Debug, Clone, Deserialize)]
 pub struct CloudEntry {
     pub id: Uuid,
+    #[allow(dead_code)]
     pub journal_id: Uuid,
-    /// Local Diary uses ISO yyyy-mm-dd; Cloud accepts the same.
     pub entry_date: String,
-    pub diary: String,
-    pub title_1: Option<String>,
-    pub content_1: Option<String>,
-    pub title_2: Option<String>,
-    pub content_2: Option<String>,
-    pub title_3: Option<String>,
-    pub content_3: Option<String>,
-    pub title_4: Option<String>,
-    pub content_4: Option<String>,
-    pub title_5: Option<String>,
-    pub content_5: Option<String>,
-    pub title_6: Option<String>,
-    pub content_6: Option<String>,
-    pub title_7: Option<String>,
-    pub content_7: Option<String>,
+    #[serde(default)]
+    pub cue_column: String,
+    #[serde(default)]
+    pub notes_column: String,
+    #[serde(default)]
     pub summary: String,
-    pub quote: String,
+    #[serde(default)]
+    pub planlar: String,
     pub version: i64,
-    pub last_modified_at: DateTime<Utc>,
-    pub created_at: DateTime<Utc>,
+    /// Cloud uses a `last_modified_at` field name we still want for
+    /// conflict resolution; some entry payloads also carry it as
+    /// `updated_at`, so we accept both via Optionals + a helper.
+    #[serde(default, alias = "updated_at")]
+    pub last_modified_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub last_modified_by: Option<Uuid>,
 }
 
-/// Same shape we push up — the Cloud-side id (`cloud_entry_id`) is optional
-/// because brand-new local rows haven't been assigned one yet.
+impl CloudEntry {
+    pub fn modified_at_or_now(&self) -> DateTime<Utc> {
+        self.last_modified_at.unwrap_or_else(Utc::now)
+    }
+}
+
+/// `PushEntryDTO` — the write shape Cloud expects in PushRequest.entries.
+/// `id` is None for brand-new local rows; once Cloud assigns one it comes
+/// back in PushResponse.merged_entries and we persist it as `cloud_entry_id`.
 #[derive(Debug, Clone, Serialize)]
 pub struct PushEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
     pub entry_date: String,
-    pub diary: String,
-    pub title_1: Option<String>,
-    pub content_1: Option<String>,
-    pub title_2: Option<String>,
-    pub content_2: Option<String>,
-    pub title_3: Option<String>,
-    pub content_3: Option<String>,
-    pub title_4: Option<String>,
-    pub content_4: Option<String>,
-    pub title_5: Option<String>,
-    pub content_5: Option<String>,
-    pub title_6: Option<String>,
-    pub content_6: Option<String>,
-    pub title_7: Option<String>,
-    pub content_7: Option<String>,
+    pub cue_column: String,
+    pub notes_column: String,
     pub summary: String,
-    pub quote: String,
+    pub planlar: String,
     pub version: i64,
     pub last_modified_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct MergedEntry {
-    /// Local PK (the date string) so the engine knows which local row to
-    /// mark as synced.
-    pub local_date: String,
-    pub cloud_id: Uuid,
-    pub version: i64,
-    /// Echoed from Cloud's authoritative timestamp. Engine doesn't read it
-    /// today (mark_synced uses `now()` for last_synced_at), but the column
-    /// is part of the Cloud contract so we keep it deserialised.
-    #[allow(dead_code)]
-    pub last_modified_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)] // engine logs the count; full contents reserved for future debug surface
-pub struct RejectedEntry {
-    pub local_date: String,
-    pub reason: String,
-}
-
-// ---------------------------------------------------------------------------
-// Tauri command DTOs (frontend-facing)
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Frontend IPC payloads
+// ===========================================================================
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

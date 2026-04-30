@@ -145,6 +145,11 @@ impl SyncEngine {
         let journal_id = metadata.cloud_journal_id.ok_or_else(|| {
             DomainError::Validation("cloud journal not selected — re-connect".into())
         })?;
+        if metadata.peer_id.is_empty() {
+            return Err(DomainError::Validation(
+                "peer_id missing — re-connect".into(),
+            ));
+        }
         let token = self.auth.get_or_refresh(&self.client).await?;
 
         // ---------- PULL ----------
@@ -155,22 +160,28 @@ impl SyncEngine {
         for cloud_entry in pull.entries {
             self.merge_remote(cloud_entry, &mut report).await?;
         }
-        meta::save_pull_at(&self.pool, Utc::now()).await?;
+        // Use Cloud's authoritative server clock as the next watermark when
+        // it provides one; otherwise fall back to local Utc::now().
+        let pull_watermark = pull.server_time.unwrap_or_else(Utc::now);
+        meta::save_pull_at(&self.pool, pull_watermark).await?;
 
         // ---------- PUSH ----------
         let dirty = self.list_dirty_entries().await?;
         if !dirty.is_empty() {
             let body = PushRequest {
                 journal_id,
+                peer_id: metadata.peer_id.clone(),
+                device_label: metadata.device_label.clone(),
+                idempotency_key: Some(uuid::Uuid::new_v4().simple().to_string()),
                 entries: dirty.iter().map(push_entry_from).collect(),
+                crdt_ops: Vec::new(),
             };
             let resp = self.client.push(&token, &body).await?;
-            for merged in &resp.merged {
-                self.mark_synced(&merged.local_date, merged.cloud_id, merged.version)
+            for merged in &resp.merged_entries {
+                self.mark_synced(&merged.entry_date, merged.id, merged.version)
                     .await?;
                 report.pushed += 1;
             }
-            report.rejected += resp.rejected.len() as u32;
             meta::save_push_at(&self.pool, Utc::now()).await?;
         }
 
@@ -375,65 +386,160 @@ impl From<DirtyEntryRow> for DirtyEntry {
     }
 }
 
+/// Local DiaryEntry → Cloud PushEntry.
+///
+/// Cloud uses a flat-string projection for cue items:
+/// `cue_column = "{title_1}: {content_1}\n{title_2}: {content_2}\n…"` (only
+/// non-empty cells, position-ordered). This matches the Reporter sidecar's
+/// projection so any tool consuming Cloud directly sees the same shape.
+/// `notes_column = diary`, `planlar = quote`. The mapping is lossy on
+/// position when re-imported (cue_items pull back onto positions 1..N
+/// densely instead of preserving sparse positions), but that's acceptable
+/// for FAZ 2 — Phase 3 char-CRDT handles per-field sync directly.
 fn push_entry_from(d: &DirtyEntry) -> PushEntry {
     PushEntry {
         id: d.cloud_id,
         entry_date: d.date.clone(),
-        diary: d.diary.clone(),
-        title_1: d.titles[0].clone(),
-        content_1: d.contents[0].clone(),
-        title_2: d.titles[1].clone(),
-        content_2: d.contents[1].clone(),
-        title_3: d.titles[2].clone(),
-        content_3: d.contents[2].clone(),
-        title_4: d.titles[3].clone(),
-        content_4: d.contents[3].clone(),
-        title_5: d.titles[4].clone(),
-        content_5: d.contents[4].clone(),
-        title_6: d.titles[5].clone(),
-        content_6: d.contents[5].clone(),
-        title_7: d.titles[6].clone(),
-        content_7: d.contents[6].clone(),
+        cue_column: encode_cue_column(&d.titles, &d.contents),
+        notes_column: d.diary.clone(),
         summary: d.summary.clone(),
-        quote: d.quote.clone(),
+        planlar: d.quote.clone(),
         version: d.version,
         last_modified_at: d.updated_at,
     }
 }
 
+/// Cloud EntryOut → local DiaryEntry. Inverse of `push_entry_from`.
 fn entry_from_cloud(c: &CloudEntry) -> DiaryEntry {
-    let mut cue_items = Vec::with_capacity(7);
-    let titles = [
-        &c.title_1, &c.title_2, &c.title_3, &c.title_4, &c.title_5, &c.title_6, &c.title_7,
-    ];
-    let contents = [
-        &c.content_1,
-        &c.content_2,
-        &c.content_3,
-        &c.content_4,
-        &c.content_5,
-        &c.content_6,
-        &c.content_7,
-    ];
-    for (i, title) in titles.iter().enumerate() {
-        if let Some(title) = title.as_ref() {
-            cue_items.push(CueItem {
-                position: (i as u32) + 1,
-                title: title.clone(),
-                content: contents[i].clone().unwrap_or_default(),
-            });
-        }
-    }
+    let cue_items = decode_cue_column(&c.cue_column);
+    let modified_at = c.modified_at_or_now();
+    let created_at = c.created_at.unwrap_or(modified_at);
 
     DiaryEntry {
         date: c.entry_date.clone(),
-        diary: c.diary.clone(),
+        diary: c.notes_column.clone(),
         cue_items,
         summary: c.summary.clone(),
-        quote: c.quote.clone(),
-        created_at: c.created_at.to_rfc3339(),
-        updated_at: c.last_modified_at.to_rfc3339(),
+        quote: c.planlar.clone(),
+        created_at: created_at.to_rfc3339(),
+        updated_at: modified_at.to_rfc3339(),
         device_id: None,
         version: c.version,
+    }
+}
+
+fn encode_cue_column(titles: &[Option<String>; 7], contents: &[Option<String>; 7]) -> String {
+    let mut lines: Vec<String> = Vec::with_capacity(7);
+    for i in 0..7 {
+        let title = titles[i].as_deref().unwrap_or("").trim();
+        let content = contents[i].as_deref().unwrap_or("").trim();
+        if title.is_empty() && content.is_empty() {
+            continue;
+        }
+        lines.push(format!("{title}: {content}"));
+    }
+    lines.join("\n")
+}
+
+fn decode_cue_column(cue_column: &str) -> Vec<CueItem> {
+    let mut out = Vec::with_capacity(7);
+    let mut pos: u32 = 1;
+    for line in cue_column.lines() {
+        if pos > 7 {
+            break;
+        }
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        // "Title: content" — split on the first colon. Anything without a
+        // colon becomes a content-only cue with an empty title.
+        let (title, content) = match line.find(':') {
+            Some(idx) => {
+                let title = line[..idx].trim().to_string();
+                let content = line[idx + 1..].trim().to_string();
+                (title, content)
+            }
+            None => (String::new(), line.to_string()),
+        };
+        out.push(CueItem {
+            position: pos,
+            title,
+            content,
+        });
+        pos += 1;
+    }
+    out
+}
+
+#[cfg(test)]
+mod cue_codec_tests {
+    use super::*;
+
+    #[test]
+    fn encode_skips_fully_empty_slots_and_keeps_positions_packed() {
+        let titles = [
+            Some("Plan".into()),
+            None,
+            Some("Mood".into()),
+            None,
+            None,
+            None,
+            None,
+        ];
+        let contents = [
+            Some("ship sync".into()),
+            None,
+            Some("focused".into()),
+            None,
+            None,
+            None,
+            None,
+        ];
+        assert_eq!(
+            encode_cue_column(&titles, &contents),
+            "Plan: ship sync\nMood: focused"
+        );
+    }
+
+    #[test]
+    fn round_trip_preserves_title_and_content() {
+        let titles = [
+            Some("A".into()),
+            Some("B".into()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+        let contents = [
+            Some("alpha".into()),
+            Some("beta".into()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+        let encoded = encode_cue_column(&titles, &contents);
+        let decoded = decode_cue_column(&encoded);
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].position, 1);
+        assert_eq!(decoded[0].title, "A");
+        assert_eq!(decoded[0].content, "alpha");
+        assert_eq!(decoded[1].position, 2);
+        assert_eq!(decoded[1].title, "B");
+        assert_eq!(decoded[1].content, "beta");
+    }
+
+    #[test]
+    fn decode_handles_lines_without_colon() {
+        let decoded = decode_cue_column("just a thought\nAnother: with title");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].title, "");
+        assert_eq!(decoded[0].content, "just a thought");
+        assert_eq!(decoded[1].title, "Another");
+        assert_eq!(decoded[1].content, "with title");
     }
 }

@@ -234,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn push_serialises_body_and_returns_merged_entries() {
-        use crate::sync::models::{MergedEntry, PushEntry};
+        use crate::sync::models::PushEntry;
         let mut server = mockito::Server::new_async().await;
         let mock = server
             .mock("POST", "/sync/push")
@@ -242,7 +242,7 @@ mod tests {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(
-                r#"{"merged":[{"local_date":"2026-04-29","cloud_id":"00000000-0000-0000-0000-000000000002","version":2,"last_modified_at":"2026-04-29T10:00:00Z"}]}"#,
+                r#"{"merged_entries":[{"id":"00000000-0000-0000-0000-000000000002","journal_id":"00000000-0000-0000-0000-000000000001","entry_date":"2026-04-29","cue_column":"","notes_column":"test","summary":"","planlar":"","version":2,"last_modified_at":"2026-04-29T10:00:00Z"}],"crdt_ops_applied":0,"crdt_ops_skipped":0,"duplicate":false,"server_time":"2026-04-29T10:00:00Z"}"#,
             )
             .create_async()
             .await;
@@ -250,35 +250,26 @@ mod tests {
         let client = CloudClient::new(&format!("{}/", server.url())).unwrap();
         let body = PushRequest {
             journal_id: Uuid::nil(),
+            peer_id: "peer-test".into(),
+            device_label: Some("Diary on Mac".into()),
+            idempotency_key: Some("idem-1".into()),
             entries: vec![PushEntry {
                 id: None,
                 entry_date: "2026-04-29".into(),
-                diary: "test".into(),
-                title_1: None,
-                content_1: None,
-                title_2: None,
-                content_2: None,
-                title_3: None,
-                content_3: None,
-                title_4: None,
-                content_4: None,
-                title_5: None,
-                content_5: None,
-                title_6: None,
-                content_6: None,
-                title_7: None,
-                content_7: None,
+                cue_column: String::new(),
+                notes_column: "test".into(),
                 summary: String::new(),
-                quote: String::new(),
+                planlar: String::new(),
                 version: 1,
                 last_modified_at: chrono::Utc::now(),
             }],
+            crdt_ops: Vec::new(),
         };
         let resp = client.push("t", &body).await.unwrap();
         mock.assert_async().await;
-        assert_eq!(resp.merged.len(), 1);
-        let m: &MergedEntry = &resp.merged[0];
-        assert_eq!(m.local_date, "2026-04-29");
+        assert_eq!(resp.merged_entries.len(), 1);
+        let m = &resp.merged_entries[0];
+        assert_eq!(m.entry_date, "2026-04-29");
         assert_eq!(m.version, 2);
     }
 }

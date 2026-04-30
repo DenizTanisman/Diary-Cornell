@@ -42,10 +42,12 @@ pub fn decide(
             return ConflictDecision::OverwriteWithCloud;
         }
         // Both sides moved forward — last-write-wins on updated_at.
+        // Cloud's last_modified_at can be missing on legacy entries; in
+        // that case fall back to "now" so a freshly-pulled cloud entry
+        // still beats older local edits when both versions diverge.
+        let cloud_at = cloud.modified_at_or_now();
         match local_updated_at {
-            Some(local_at) if cloud.last_modified_at > local_at => {
-                ConflictDecision::CloudWonOverDirtyLocal
-            }
+            Some(local_at) if cloud_at > local_at => ConflictDecision::CloudWonOverDirtyLocal,
             _ => ConflictDecision::LocalWon,
         }
     } else {
@@ -81,28 +83,18 @@ mod tests {
             id: uuid::Uuid::nil(),
             journal_id: uuid::Uuid::nil(),
             entry_date: "2026-04-29".into(),
-            diary: "cloud".into(),
-            title_1: None,
-            content_1: None,
-            title_2: None,
-            content_2: None,
-            title_3: None,
-            content_3: None,
-            title_4: None,
-            content_4: None,
-            title_5: None,
-            content_5: None,
-            title_6: None,
-            content_6: None,
-            title_7: None,
-            content_7: None,
+            cue_column: String::new(),
+            notes_column: "cloud".into(),
             summary: String::new(),
-            quote: String::new(),
+            planlar: String::new(),
             version,
-            last_modified_at: chrono::DateTime::parse_from_rfc3339(modified)
-                .unwrap()
-                .with_timezone(&Utc),
-            created_at: chrono::Utc::now(),
+            last_modified_at: Some(
+                chrono::DateTime::parse_from_rfc3339(modified)
+                    .unwrap()
+                    .with_timezone(&Utc),
+            ),
+            created_at: Some(chrono::Utc::now()),
+            last_modified_by: None,
         }
     }
 
