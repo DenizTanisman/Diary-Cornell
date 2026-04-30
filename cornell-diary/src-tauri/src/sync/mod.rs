@@ -10,7 +10,10 @@ pub mod conflict;
 pub mod engine;
 pub mod meta;
 pub mod models;
+pub mod network;
+pub mod scheduler;
 
 pub use client::CloudClient;
 pub use engine::SyncEngine;
 pub use models::{ConnectReport, SyncReport, SyncStatus};
+pub use network::NetworkMonitor;

@@ -12,7 +12,7 @@ use crate::commands::sync::{
 };
 use crate::db::{build_pool, run_migrations, EntryRepository, PostgresEntryRepository};
 use crate::sync::auth::AuthManager;
-use crate::sync::{CloudClient, SyncEngine};
+use crate::sync::{network, scheduler, CloudClient, SyncEngine};
 
 mod commands;
 mod db;
@@ -71,7 +71,19 @@ pub fn run() {
                 CloudClient::new(&cloud_url).map_err(|e| anyhow::anyhow!("cloud client: {e:?}"))?;
             let auth = AuthManager::new(pool.clone());
             let engine = Arc::new(SyncEngine::new(repo, cloud, auth, pool));
-            app.manage(SyncState { engine });
+
+            // FAZ 2.2 background tasks. The scheduler runs the hourly cron;
+            // the network monitor probes /health every 30s and triggers a
+            // sync on offline → online transitions. Both are fire-and-forget;
+            // Tauri tearing down its async runtime stops them at app quit.
+            tauri::async_runtime::block_on(async {
+                if let Err(e) = scheduler::start(engine.clone()).await {
+                    tracing::warn!(target: "cornell_diary::sync", error = %e, "scheduler disabled");
+                }
+            });
+            let network = network::start(cloud_url.clone(), engine.clone());
+
+            app.manage(SyncState { engine, network });
 
             Ok(())
         })
