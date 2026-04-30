@@ -15,9 +15,9 @@ use crate::commands::sync::{
 };
 use crate::crdt::{PendingOpRepo, WsClient};
 use crate::db::{build_pool, run_migrations, EntryRepository};
-#[cfg(feature = "postgres")]
+#[cfg(not(diary_sqlite))]
 use crate::db::PostgresEntryRepository;
-#[cfg(feature = "sqlite")]
+#[cfg(diary_sqlite)]
 use crate::db::SqliteEntryRepository;
 use crate::sync::auth::AuthManager;
 use crate::sync::{network, CloudClient, SyncEngine};
@@ -39,9 +39,9 @@ mod sync;
 
 const DEFAULT_CLOUD_URL: &str = "http://127.0.0.1:5000";
 
-#[cfg(feature = "postgres")]
+#[cfg(not(diary_sqlite))]
 const STORAGE_BACKEND: &str = "postgres";
-#[cfg(feature = "sqlite")]
+#[cfg(diary_sqlite)]
 const STORAGE_BACKEND: &str = "sqlite";
 
 /// Where the local DB lives.
@@ -54,13 +54,13 @@ const STORAGE_BACKEND: &str = "sqlite";
 ///   resolved by `tauri::Manager::path()`). Override with
 ///   `DATABASE_URL` if you want to point at a custom file (used by
 ///   integration tests that drive a temp file).
-#[cfg(feature = "postgres")]
+#[cfg(not(diary_sqlite))]
 fn resolve_database_url(_app: &tauri::App) -> anyhow::Result<String> {
     std::env::var("DATABASE_URL")
         .map_err(|_| anyhow::anyhow!("DATABASE_URL must be set (e.g. via .env)"))
 }
 
-#[cfg(feature = "sqlite")]
+#[cfg(diary_sqlite)]
 fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
     if let Ok(url) = std::env::var("DATABASE_URL") {
         if !url.is_empty() {
@@ -115,10 +115,10 @@ pub fn run() {
                 Ok::<_, anyhow::Error>(pool)
             })?;
 
-            #[cfg(feature = "postgres")]
+            #[cfg(not(diary_sqlite))]
             let repo: Arc<dyn EntryRepository> =
                 Arc::new(PostgresEntryRepository::new(pool.clone()));
-            #[cfg(feature = "sqlite")]
+            #[cfg(diary_sqlite)]
             let repo: Arc<dyn EntryRepository> =
                 Arc::new(SqliteEntryRepository::new(pool.clone()));
             app.manage(AppState {

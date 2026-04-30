@@ -114,7 +114,7 @@ impl PendingOpRepo {
 // Postgres seed repo. Equivalent SQLite tests would live in a parallel
 // `cfg(feature = "sqlite")` block; not added yet because Android's
 // SqliteEntryRepository has its own coverage in db::sqlite_impl.
-#[cfg(all(test, feature = "postgres"))]
+#[cfg(all(test, not(diary_sqlite)))]
 mod tests {
     use super::*;
     use crate::crdt::node::CharNode;

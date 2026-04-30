@@ -12,22 +12,33 @@ use crate::error::DomainError;
 const POOL_MAX_CONNECTIONS: u32 = 5;
 const POOL_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[cfg(all(feature = "postgres", feature = "sqlite"))]
-compile_error!(
-    "enable exactly one storage backend: --features postgres OR --features sqlite"
-);
+// Backend selection precedence:
+//   1. Mobile target (android / ios) → SQLite, regardless of features.
+//      Tauri's `tauri android dev` only knows how to *add* features
+//      (`--features sqlite`), not remove the postgres default — so we
+//      pick by target_os instead and treat `postgres` as "drag along
+//      the driver but don't dispatch to it".
+//   2. Desktop + `feature = "sqlite"` (no postgres) → SQLite (used by
+//      desktop tests of the SQLite repo).
+//   3. Otherwise → Postgres (the desktop default).
+//
+// Both sqlx drivers can be compiled in at once; only one type alias
+// resolves so dead code in the unused driver is dropped at link time.
 
 #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
 compile_error!("enable a storage backend: --features postgres OR --features sqlite");
+
+#[cfg(diary_sqlite)]
+pub type DbPool = sqlx::SqlitePool;
+
+#[cfg(not(diary_sqlite))]
+pub type DbPool = sqlx::PgPool;
 
 // ----------------------------------------------------------------------
 // Postgres backend (desktop)
 // ----------------------------------------------------------------------
 
-#[cfg(feature = "postgres")]
-pub type DbPool = sqlx::PgPool;
-
-#[cfg(feature = "postgres")]
+#[cfg(not(diary_sqlite))]
 pub async fn build_pool(database_url: &str) -> Result<DbPool, DomainError> {
     use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 
@@ -44,7 +55,7 @@ pub async fn build_pool(database_url: &str) -> Result<DbPool, DomainError> {
         .map_err(|e| DomainError::Storage(format!("postgres connect: {e}")))
 }
 
-#[cfg(feature = "postgres")]
+#[cfg(not(diary_sqlite))]
 pub async fn run_migrations(pool: &DbPool) -> Result<(), DomainError> {
     sqlx::migrate!("./postgres_migrations")
         .run(pool)
@@ -56,10 +67,7 @@ pub async fn run_migrations(pool: &DbPool) -> Result<(), DomainError> {
 // SQLite backend (Android, iOS, future embedded targets)
 // ----------------------------------------------------------------------
 
-#[cfg(feature = "sqlite")]
-pub type DbPool = sqlx::SqlitePool;
-
-#[cfg(feature = "sqlite")]
+#[cfg(diary_sqlite)]
 pub async fn build_pool(database_url: &str) -> Result<DbPool, DomainError> {
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use std::str::FromStr;
@@ -83,7 +91,7 @@ pub async fn build_pool(database_url: &str) -> Result<DbPool, DomainError> {
         .map_err(|e| DomainError::Storage(format!("sqlite connect: {e}")))
 }
 
-#[cfg(feature = "sqlite")]
+#[cfg(diary_sqlite)]
 pub async fn run_migrations(pool: &DbPool) -> Result<(), DomainError> {
     sqlx::migrate!("./sqlite_migrations")
         .run(pool)
