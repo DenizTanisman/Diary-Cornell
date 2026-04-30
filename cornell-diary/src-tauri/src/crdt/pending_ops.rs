@@ -119,9 +119,7 @@ mod tests {
     use serial_test::serial;
 
     async fn fresh_pool() -> Option<PgPool> {
-        let url = std::env::var("DATABASE_URL")
-            .ok()
-            .filter(|s| !s.is_empty())?;
+        let url = crate::db::test_helpers::test_database_url()?;
         let pool = build_pool(&url).await.ok()?;
         run_migrations(&pool).await.ok()?;
         // Tests share one Postgres — wipe pending_ops AND any diary rows
@@ -167,7 +165,9 @@ mod tests {
     #[serial(postgres)]
     async fn queue_then_list_round_trips() {
         let Some(pool) = fresh_pool().await else {
-            eprintln!("skipping queue_then_list_round_trips — DATABASE_URL not reachable");
+            eprintln!(
+                "skipping queue_then_list_round_trips — TEST_DATABASE_URL / DATABASE_URL unreachable"
+            );
             return;
         };
         seed_entry(&pool).await;
@@ -190,7 +190,7 @@ mod tests {
     async fn mark_pushed_excludes_from_unpushed_listing() {
         let Some(pool) = fresh_pool().await else {
             eprintln!(
-                "skipping mark_pushed_excludes_from_unpushed_listing — DATABASE_URL not reachable"
+                "skipping mark_pushed_excludes_from_unpushed_listing — TEST_DATABASE_URL / DATABASE_URL unreachable"
             );
             return;
         };

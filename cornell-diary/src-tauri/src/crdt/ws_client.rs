@@ -658,9 +658,7 @@ mod integration_tests {
     }
 
     async fn fresh_pool_with_meta() -> Option<sqlx::PgPool> {
-        let url = std::env::var("DATABASE_URL")
-            .ok()
-            .filter(|s| !s.is_empty())?;
+        let url = crate::db::test_helpers::test_database_url()?;
         let pool = build_pool(&url).await.ok()?;
         run_migrations(&pool).await.ok()?;
         sqlx::query("TRUNCATE pending_ops, sync_metadata RESTART IDENTITY CASCADE")
