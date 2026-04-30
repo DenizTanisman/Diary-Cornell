@@ -4,3 +4,4 @@
 //! without touching React components.
 
 pub mod entries;
+pub mod sync;
