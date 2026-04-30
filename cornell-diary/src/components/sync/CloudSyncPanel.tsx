@@ -16,7 +16,7 @@ import type { ConnectReport, SyncReport } from '../../types/cloudSync';
 
 export function CloudSyncPanel() {
   const { status, error: statusError, refresh } = useSyncStatus();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [deviceLabel, setDeviceLabel] = useState(detectDeviceLabel());
   const [busy, setBusy] = useState<'idle' | 'connect' | 'trigger' | 'disconnect'>('idle');
@@ -31,7 +31,7 @@ export function CloudSyncPanel() {
     setActionError(null);
     try {
       const r = await invoke<ConnectReport>('connect_cloud', {
-        email,
+        username,
         password,
         deviceLabel,
       });
@@ -92,14 +92,15 @@ export function CloudSyncPanel() {
             kullanılır, hiçbir yere yazılmaz.
           </p>
           <label style={labelStyle}>
-            E-posta
+            Kullanıcı adı
             <input
-              type="email"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               disabled={busy !== 'idle'}
-              data-testid="cloud-email"
+              data-testid="cloud-username"
               style={inputStyle}
             />
           </label>
@@ -128,7 +129,7 @@ export function CloudSyncPanel() {
           <button
             type="submit"
             className="sync-card__button"
-            disabled={busy !== 'idle' || !email || !password}
+            disabled={busy !== 'idle' || !username || !password}
             data-testid="cloud-connect"
           >
             {busy === 'connect' ? 'Bağlanılıyor…' : 'Cloud\'a Bağlan'}

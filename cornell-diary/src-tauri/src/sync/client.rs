@@ -48,11 +48,11 @@ impl CloudClient {
         &self.base
     }
 
-    pub async fn login(&self, email: &str, password: &str) -> Result<TokenPair, DomainError> {
+    pub async fn login(&self, username: &str, password: &str) -> Result<TokenPair, DomainError> {
         let resp = self
             .http
             .post(self.base.join("auth/login").map_err(map_url)?)
-            .json(&LoginRequest { email, password })
+            .json(&LoginRequest { username, password })
             .send()
             .await
             .map_err(|e| DomainError::Storage(format!("cloud login: {e}")))?;
@@ -169,7 +169,7 @@ mod tests {
         let mock = server
             .mock("POST", "/auth/login")
             .match_body(mockito::Matcher::JsonString(
-                r#"{"email":"a@b.c","password":"pw"}"#.into(),
+                r#"{"username":"deniz","password":"pw"}"#.into(),
             ))
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -178,7 +178,7 @@ mod tests {
             .await;
 
         let client = CloudClient::new(&format!("{}/", server.url())).unwrap();
-        let tokens = client.login("a@b.c", "pw").await.unwrap();
+        let tokens = client.login("deniz", "pw").await.unwrap();
         mock.assert_async().await;
         assert_eq!(tokens.access_token, "acc");
         assert_eq!(tokens.refresh_token, "ref");
@@ -196,7 +196,7 @@ mod tests {
             .await;
 
         let client = CloudClient::new(&format!("{}/", server.url())).unwrap();
-        let err = client.login("a@b.c", "wrong").await.unwrap_err();
+        let err = client.login("deniz", "wrong").await.unwrap_err();
         assert!(matches!(err, DomainError::Validation(_)));
     }
 
