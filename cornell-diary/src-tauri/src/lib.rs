@@ -7,11 +7,19 @@ use crate::commands::entries::{
     diary_last_updated_at, diary_list_all, diary_list_dates, diary_list_range, diary_search,
     diary_set_setting, diary_upsert, AppState,
 };
+use crate::commands::sync::{
+    connect_cloud, disconnect_cloud, get_sync_status, trigger_sync, SyncState,
+};
 use crate::db::{build_pool, run_migrations, EntryRepository, PostgresEntryRepository};
+use crate::sync::auth::AuthManager;
+use crate::sync::{CloudClient, SyncEngine};
 
 mod commands;
 mod db;
 mod error;
+mod sync;
+
+const DEFAULT_CLOUD_URL: &str = "http://127.0.0.1:5000";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -49,9 +57,22 @@ pub fn run() {
             let repo: Arc<dyn EntryRepository> =
                 Arc::new(PostgresEntryRepository::new(pool.clone()));
             app.manage(AppState {
-                repo,
-                pg_pool: Some(pool),
+                repo: repo.clone(),
+                pg_pool: Some(pool.clone()),
             });
+
+            // Sync surface (FAZ 2). CloudClient is built up-front; the
+            // engine reaches it via the AuthManager + SyncEngine wrapper.
+            let cloud_url = std::env::var("CLOUD_URL")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| DEFAULT_CLOUD_URL.to_string());
+            let cloud =
+                CloudClient::new(&cloud_url).map_err(|e| anyhow::anyhow!("cloud client: {e:?}"))?;
+            let auth = AuthManager::new(pool.clone());
+            let engine = Arc::new(SyncEngine::new(repo, cloud, auth, pool));
+            app.manage(SyncState { engine });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -67,6 +88,10 @@ pub fn run() {
             diary_bulk_upsert,
             diary_get_setting,
             diary_set_setting,
+            connect_cloud,
+            disconnect_cloud,
+            trigger_sync,
+            get_sync_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

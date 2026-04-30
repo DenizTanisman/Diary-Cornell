@@ -39,7 +39,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2.5"
 
+# --- FAZ 2: Cloud REST sync ---
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+jsonwebtoken = "9.3"
+
 [dev-dependencies]
 tokio = { version = "1.40", features = ["test-util", "macros", "rt-multi-thread"] }
 serial_test = "3"
+mockito = "1.5"
 
