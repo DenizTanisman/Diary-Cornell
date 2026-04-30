@@ -150,13 +150,19 @@ impl SyncEngine {
                 "peer_id missing — re-connect".into(),
             ));
         }
-        let token = self.auth.get_or_refresh(&self.client).await?;
-
         // ---------- PULL ----------
-        let pull = self
-            .client
-            .pull(&token, journal_id, metadata.last_pull_at)
-            .await?;
+        // Both pull + push go through `with_retry`: a Cloud 401 mid-sync
+        // (server restart, manual revoke) force-refreshes the token and
+        // retries once. Without this, a long-idle session every few
+        // hours surfaces as a "token_invalid" red box requiring manual
+        // disconnect/reconnect.
+        let last_pull = metadata.last_pull_at;
+        let pull = crate::sync::auth::with_retry(
+            &self.auth,
+            self.client.clone(),
+            move |c, token| async move { c.pull(&token, journal_id, last_pull).await },
+        )
+        .await?;
         for cloud_entry in pull.entries {
             self.merge_remote(cloud_entry, &mut report).await?;
         }
@@ -176,7 +182,12 @@ impl SyncEngine {
                 entries: dirty.iter().map(push_entry_from).collect(),
                 crdt_ops: Vec::new(),
             };
-            let resp = self.client.push(&token, &body).await?;
+            let resp =
+                crate::sync::auth::with_retry(&self.auth, self.client.clone(), move |c, token| {
+                    let body = body.clone();
+                    async move { c.push(&token, &body).await }
+                })
+                .await?;
             for merged in &resp.merged_entries {
                 self.mark_synced(&merged.entry_date, merged.id, merged.version)
                     .await?;

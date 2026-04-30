@@ -8,6 +8,8 @@ pub mod models;
 pub mod pool;
 pub mod postgres_impl;
 pub mod repository;
+#[cfg(test)]
+pub mod test_helpers;
 
 pub use models::{BulkResult, DiaryEntry};
 pub use pool::{build_pool, run_migrations};

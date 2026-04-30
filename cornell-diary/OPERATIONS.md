@@ -21,6 +21,32 @@ pnpm tauri dev
 `SQLITE_LEGACY_PATH` is the one-shot migration source path used by FAZ 1.2 only — you can leave it
 unset on a fresh install.
 
+## Test database isolation
+
+`cargo test` writes fixture rows and TRUNCATEs `sync_metadata` /
+`pending_ops` between cases. Pointing it at the dev DB clobbers
+whatever you're currently editing in `tauri dev` — so use a separate
+database whenever the two run on the same machine:
+
+```bash
+# One-time setup
+createdb -h 127.0.0.1 -p 5435 -U diary_user diary_db_test
+
+# Every cargo-test run
+TEST_DATABASE_URL='postgres://diary_user:change_me_in_dev@127.0.0.1:5435/diary_db_test' \
+    cargo test --lib
+```
+
+`db::test_helpers::test_database_url()` reads `TEST_DATABASE_URL` first
+and only falls back to `DATABASE_URL` when the dedicated var is unset
+(which keeps zero-config CI workable). When neither is set every
+Postgres-touching test self-skips with a clear message.
+
+If a stray run leaked into the dev DB (rows under far-future dates,
+`peer_id='alice@laptop'`, version-0 rows blocking push), the cleanup
+queries are documented under [Manual data fixups](#manual-data-fixups)
+below.
+
 ## Schema migrations
 
 `sqlx::migrate!` reads the directory at compile time and embeds every `*.sql` file in the binary.

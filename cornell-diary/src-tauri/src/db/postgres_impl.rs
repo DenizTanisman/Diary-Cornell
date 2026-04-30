@@ -442,7 +442,9 @@ mod tests {
     use super::*;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok().filter(|s| !s.is_empty())
+        // Prefer a dedicated TEST_DATABASE_URL so cargo test never
+        // TRUNCATEs the dev DB the user is editing in `tauri dev`.
+        crate::db::test_helpers::test_database_url()
     }
 
     async fn fresh_pool() -> Option<PgPool> {
