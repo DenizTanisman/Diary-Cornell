@@ -17,7 +17,8 @@ use uuid::Uuid;
 
 use crate::error::DomainError;
 use crate::sync::models::{
-    CloudJournal, LoginRequest, PullResponse, PushRequest, PushResponse, RefreshRequest, TokenPair,
+    CloudJournal, JournalCreateRequest, JournalListResponse, LoginRequest, PullResponse,
+    PushRequest, PushResponse, RefreshRequest, TokenPair,
 };
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -78,23 +79,20 @@ impl CloudClient {
             .send()
             .await
             .map_err(|e| DomainError::Storage(format!("cloud journals: {e}")))?;
-        unwrap_json(resp).await
+        let envelope: JournalListResponse = unwrap_json(resp).await?;
+        Ok(envelope.items)
     }
 
     pub async fn create_journal(
         &self,
         token: &str,
-        name: &str,
+        title: &str,
     ) -> Result<CloudJournal, DomainError> {
-        #[derive(serde::Serialize)]
-        struct Body<'a> {
-            name: &'a str,
-        }
         let resp = self
             .http
             .post(self.base.join("journals").map_err(map_url)?)
             .bearer_auth(token)
-            .json(&Body { name })
+            .json(&JournalCreateRequest { title })
             .send()
             .await
             .map_err(|e| DomainError::Storage(format!("cloud create_journal: {e}")))?;

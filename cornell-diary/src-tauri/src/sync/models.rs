@@ -44,10 +44,37 @@ pub struct RefreshRequest<'a> {
     pub refresh_token: &'a str,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+/// Cloud's `JournalOut` shape. Cloud calls it `title`; we surface it as
+/// `name` to the frontend through ConnectReport for consistency with the
+/// Diary domain vocabulary, but the wire field is `title`.
+#[derive(Debug, Clone, Deserialize)]
 pub struct CloudJournal {
     pub id: Uuid,
-    pub name: String,
+    pub title: String,
+    /// Cloud also returns owner_id, created_at, updated_at, role — we
+    /// don't need them on the client but keep the struct lenient via
+    /// `serde(default)` on optional fields and ignore unknown ones.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub owner_id: Option<Uuid>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub role: Option<String>,
+}
+
+/// Wrapper Cloud uses for list endpoints — `{ "items": [...] }`. Without
+/// this wrapper our `Vec<CloudJournal>` deserialise fails and the connect
+/// flow silently abandons journal selection (cloud_journal_id stays NULL,
+/// next sync errors with "cloud journal not selected").
+#[derive(Debug, Clone, Deserialize)]
+pub struct JournalListResponse {
+    pub items: Vec<CloudJournal>,
+}
+
+/// Cloud's `JournalCreate` request body — single field `title` (not `name`).
+#[derive(Debug, Clone, Serialize)]
+pub struct JournalCreateRequest<'a> {
+    pub title: &'a str,
 }
 
 #[derive(Debug, Clone, Deserialize)]
