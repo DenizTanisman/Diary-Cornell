@@ -46,6 +46,24 @@ pub async fn apply_local_op(
     state.ws.apply_local_op(&entry_date, &field_name, op).await
 }
 
+/// Convenience wrapper for the React side: hand it the new full-text
+/// of a textarea and let Rust diff against the current CRDT state to
+/// produce the minimum set of CharOps. Returns the freshly-materialised
+/// text so the editor can reconcile cursor position. `apply_local_op`
+/// stays for the precise / advanced path.
+#[tauri::command]
+pub async fn apply_local_text(
+    state: State<'_, CrdtState>,
+    entry_date: String,
+    field_name: String,
+    new_text: String,
+) -> Result<String, DomainError> {
+    state
+        .ws
+        .apply_local_text(&entry_date, &field_name, &new_text)
+        .await
+}
+
 #[tauri::command]
 pub async fn unsubscribe_crdt(
     state: State<'_, CrdtState>,

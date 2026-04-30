@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
-use crate::commands::crdt::{apply_local_op, subscribe_crdt, unsubscribe_crdt, CrdtState};
+use crate::commands::crdt::{
+    apply_local_op, apply_local_text, subscribe_crdt, unsubscribe_crdt, CrdtState,
+};
 use crate::commands::entries::{
     diary_bulk_upsert, diary_delete, diary_entry_count, diary_get_by_date, diary_get_setting,
     diary_last_updated_at, diary_list_all, diary_list_dates, diary_list_range, diary_search,
@@ -134,6 +136,7 @@ pub fn run() {
             get_sync_status,
             subscribe_crdt,
             apply_local_op,
+            apply_local_text,
             unsubscribe_crdt,
         ])
         .run(tauri::generate_context!())

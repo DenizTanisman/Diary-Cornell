@@ -174,6 +174,36 @@ impl CrdtDocument {
         out
     }
 
+    /// Walk-order list of `(char_id, character)` for every visible
+    /// (non-deleted) node — index `i` corresponds to character `i` in
+    /// `materialize()`. The diff-and-broadcast path uses this to map
+    /// "char at position N" to a stable `char_id` when emitting deletes.
+    pub fn visible_chars(&self) -> Vec<(String, char)> {
+        let nodes = self.lock_nodes();
+        let mut out = Vec::new();
+        let mut cursor = nodes.get(HEAD_ID).and_then(|h| h.next_id.clone());
+        let mut hops = 0usize;
+        while let Some(id) = cursor {
+            if id == TAIL_ID {
+                break;
+            }
+            let node = match nodes.get(&id) {
+                Some(n) => n,
+                None => break,
+            };
+            if !node.is_deleted {
+                out.push((node.char_id.clone(), node.character));
+            }
+            cursor = node.next_id.clone();
+            hops += 1;
+            if hops > nodes.len() + 4 {
+                tracing::warn!(target: "cornell_diary::crdt", "cycle detected during visible_chars");
+                break;
+            }
+        }
+        out
+    }
+
     // ----------------------------------------------------------------------
     // internals
     // ----------------------------------------------------------------------
@@ -618,6 +648,22 @@ mod tests {
         assert_eq!(text_a, text_c, "insertion order vs shuffled diverged");
         // Sanity check — text shouldn't be empty if we emitted 200 inserts.
         assert!(!text_a.is_empty(), "expected non-empty materialised text");
+    }
+
+    #[test]
+    fn visible_chars_returns_in_materialise_order() {
+        let doc = CrdtDocument::new("alice");
+        let op_h = doc.local_insert('h', None);
+        let op_e = doc.local_insert('e', Some(op_h.char_id()));
+        let op_y = doc.local_insert('y', Some(op_e.char_id()));
+        // Delete the middle 'e'; visible_chars must skip it.
+        doc.local_delete(op_e.char_id());
+
+        let visible = doc.visible_chars();
+        let chars: String = visible.iter().map(|(_, c)| *c).collect();
+        assert_eq!(chars, "hy");
+        assert_eq!(visible[0].0, op_h.char_id());
+        assert_eq!(visible[1].0, op_y.char_id());
     }
 
     /// CharOp wire serialisation must match Cloud's CRDTOpDTO shape.

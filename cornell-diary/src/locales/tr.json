@@ -50,6 +50,12 @@
     "languageEN": "English",
     "autoSave": "Otomatik kayıt süresi"
   },
+  "crdt": {
+    "presence": {
+      "single": "{peer} de yazıyor",
+      "many": "{count} kişi daha yazıyor"
+    }
+  },
   "sync": {
     "title": "Senkronizasyon",
     "exportTitle": "Dışa Aktar (JSON)",
