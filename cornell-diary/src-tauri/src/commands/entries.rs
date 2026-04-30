@@ -14,11 +14,13 @@ use crate::error::DomainError;
 
 /// Shared application state; held by Tauri once `manage`d in `lib::run()`.
 /// `Arc<dyn EntryRepository>` lets us swap the concrete implementation at
-/// boot. `pg_pool` is `Some` only when STORAGE_BACKEND=postgres — the
-/// migration command (FAZ 1.2) reaches for it directly so it never has to
-/// downcast through the trait.
+/// boot. `pg_pool` is held so FAZ 2 (sync engine, scheduler) can reach the
+/// same pool the repository uses without round-tripping through invoke.
 pub struct AppState {
     pub repo: Arc<dyn EntryRepository>,
+    /// Currently no command reads it directly — clippy flags it as dead
+    /// until the sync surface lands.
+    #[allow(dead_code)]
     pub pg_pool: Option<PgPool>,
 }
 

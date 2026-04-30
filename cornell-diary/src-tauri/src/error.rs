@@ -10,6 +10,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum DomainError {
     #[error("repository not initialized")]
+    #[allow(dead_code)] // surfaced again as soon as a backend ships its own lazy-init path
     NotInitialized,
 
     #[error("invalid date: {0}")]
@@ -60,12 +61,6 @@ impl Serialize for DomainError {
             message: self.to_string(),
         }
         .serialize(serializer)
-    }
-}
-
-impl From<rusqlite::Error> for DomainError {
-    fn from(err: rusqlite::Error) -> Self {
-        DomainError::Storage(err.to_string())
     }
 }
 
