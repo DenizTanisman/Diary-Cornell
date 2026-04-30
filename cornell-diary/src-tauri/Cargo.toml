@@ -44,6 +44,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 jsonwebtoken = "9.3"
 tokio-cron-scheduler = "0.13"
 
+# --- FAZ 3.2: WS client for real-time CRDT exchange ---
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+
 [dev-dependencies]
 tokio = { version = "1.40", features = ["test-util", "macros", "rt-multi-thread"] }
 serial_test = "3"
