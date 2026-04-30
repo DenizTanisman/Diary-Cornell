@@ -11,7 +11,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use jsonwebtoken::DecodingKey;
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::db::DbPool;
 use tokio::sync::Mutex;
 
 use crate::error::DomainError;
@@ -30,14 +30,14 @@ struct JwtClaims {
 }
 
 pub struct AuthManager {
-    pool: PgPool,
+    pool: DbPool,
     /// Single in-flight refresh at a time. Two concurrent sync_engine
     /// triggers shouldn't both call /auth/refresh.
     refresh_lock: Mutex<()>,
 }
 
 impl AuthManager {
-    pub fn new(pool: PgPool) -> Arc<Self> {
+    pub fn new(pool: DbPool) -> Arc<Self> {
         Arc::new(Self {
             pool,
             refresh_lock: Mutex::new(()),
@@ -47,7 +47,7 @@ impl AuthManager {
     /// Visible to the scheduler / network monitor (FAZ 2.2) so they can
     /// piggyback on the same pool the auth path uses without rebuilding one.
     #[allow(dead_code)]
-    pub fn pool(&self) -> &PgPool {
+    pub fn pool(&self) -> &DbPool {
         &self.pool
     }
 
@@ -238,7 +238,7 @@ mod tests {
         access: &str,
         refresh: &str,
         exp: chrono::DateTime<Utc>,
-    ) -> Option<sqlx::PgPool> {
+    ) -> Option<DbPool> {
         let url = crate::db::test_helpers::test_database_url()?;
         let pool = build_pool(&url).await.ok()?;
         run_migrations(&pool).await.ok()?;

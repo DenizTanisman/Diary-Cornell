@@ -10,7 +10,7 @@
 //! depend on sqlx directly.
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use crate::db::DbPool;
 
 use crate::crdt::operations::CharOp;
 use crate::error::DomainError;
@@ -30,11 +30,11 @@ pub struct PendingOp {
 
 #[derive(Clone)]
 pub struct PendingOpRepo {
-    pool: PgPool,
+    pool: DbPool,
 }
 
 impl PendingOpRepo {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self { pool }
     }
 
@@ -108,7 +108,13 @@ impl PendingOpRepo {
     }
 }
 
-#[cfg(test)]
+// Postgres-flavored integration tests. The pending_ops repository
+// itself is backend-agnostic via `DbPool`, but the test helpers below
+// use Postgres-only SQL (TRUNCATE…RESTART IDENTITY CASCADE) and the
+// Postgres seed repo. Equivalent SQLite tests would live in a parallel
+// `cfg(feature = "sqlite")` block; not added yet because Android's
+// SqliteEntryRepository has its own coverage in db::sqlite_impl.
+#[cfg(all(test, feature = "postgres"))]
 mod tests {
     use super::*;
     use crate::crdt::node::CharNode;
@@ -118,7 +124,7 @@ mod tests {
     use crate::db::run_migrations;
     use serial_test::serial;
 
-    async fn fresh_pool() -> Option<PgPool> {
+    async fn fresh_pool() -> Option<DbPool> {
         let url = crate::db::test_helpers::test_database_url()?;
         let pool = build_pool(&url).await.ok()?;
         run_migrations(&pool).await.ok()?;
@@ -135,7 +141,7 @@ mod tests {
         Some(pool)
     }
 
-    async fn seed_entry(pool: &PgPool) {
+    async fn seed_entry(pool: &DbPool) {
         // pending_ops.entry_date FKs to diary_entries — make sure the
         // referenced row exists before queueing.
         let repo = PostgresEntryRepository::new(pool.clone());

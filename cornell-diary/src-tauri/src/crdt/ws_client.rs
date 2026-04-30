@@ -657,7 +657,7 @@ mod integration_tests {
         url
     }
 
-    async fn fresh_pool_with_meta() -> Option<sqlx::PgPool> {
+    async fn fresh_pool_with_meta() -> Option<crate::db::DbPool> {
         let url = crate::db::test_helpers::test_database_url()?;
         let pool = build_pool(&url).await.ok()?;
         run_migrations(&pool).await.ok()?;

@@ -6,12 +6,18 @@
 
 pub mod models;
 pub mod pool;
+#[cfg(feature = "postgres")]
 pub mod postgres_impl;
 pub mod repository;
+#[cfg(feature = "sqlite")]
+pub mod sqlite_impl;
 #[cfg(test)]
 pub mod test_helpers;
 
 pub use models::{BulkResult, DiaryEntry};
-pub use pool::{build_pool, run_migrations};
+pub use pool::{build_pool, run_migrations, DbPool};
+#[cfg(feature = "postgres")]
 pub use postgres_impl::PostgresEntryRepository;
 pub use repository::EntryRepository;
+#[cfg(feature = "sqlite")]
+pub use sqlite_impl::SqliteEntryRepository;

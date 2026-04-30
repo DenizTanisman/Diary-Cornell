@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use crate::db::DbPool;
 use tokio::sync::Mutex;
 
 use crate::db::{models::CueItem, DiaryEntry, EntryRepository};
@@ -27,7 +27,7 @@ pub struct SyncEngine {
     repo: Arc<dyn EntryRepository>,
     client: CloudClient,
     auth: Arc<AuthManager>,
-    pool: PgPool,
+    pool: DbPool,
     /// Single-instance gate. The hourly scheduler and a network-up trigger
     /// must not race on dirty rows — the second caller waits.
     cycle_lock: Mutex<()>,
@@ -38,7 +38,7 @@ impl SyncEngine {
         repo: Arc<dyn EntryRepository>,
         client: CloudClient,
         auth: Arc<AuthManager>,
-        pool: PgPool,
+        pool: DbPool,
     ) -> Self {
         Self {
             repo,
@@ -53,7 +53,7 @@ impl SyncEngine {
     /// holds so callers (Tauri commands, status polling, etc.) can issue
     /// short DB queries without reconstructing one.
     #[allow(dead_code)]
-    pub fn pool(&self) -> &PgPool {
+    pub fn pool(&self) -> &DbPool {
         &self.pool
     }
 
