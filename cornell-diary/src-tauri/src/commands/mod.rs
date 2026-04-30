@@ -3,5 +3,6 @@
 //! frontend's existing repository abstraction can swap implementations
 //! without touching React components.
 
+pub mod crdt;
 pub mod entries;
 pub mod sync;

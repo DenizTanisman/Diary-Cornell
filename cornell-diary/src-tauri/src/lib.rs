@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use crate::commands::crdt::{apply_local_op, subscribe_crdt, unsubscribe_crdt, CrdtState};
 use crate::commands::entries::{
     diary_bulk_upsert, diary_delete, diary_entry_count, diary_get_by_date, diary_get_setting,
     diary_last_updated_at, diary_list_all, diary_list_dates, diary_list_range, diary_search,
@@ -10,6 +11,7 @@ use crate::commands::entries::{
 use crate::commands::sync::{
     connect_cloud, disconnect_cloud, get_sync_status, trigger_sync, SyncState,
 };
+use crate::crdt::{PendingOpRepo, WsClient};
 use crate::db::{build_pool, run_migrations, EntryRepository, PostgresEntryRepository};
 use crate::sync::auth::AuthManager;
 use crate::sync::{network, CloudClient, SyncEngine};
@@ -80,7 +82,12 @@ pub fn run() {
             let cloud =
                 CloudClient::new(&cloud_url).map_err(|e| anyhow::anyhow!("cloud client: {e:?}"))?;
             let auth = AuthManager::new(pool.clone());
-            let engine = Arc::new(SyncEngine::new(repo, cloud, auth, pool));
+            let engine = Arc::new(SyncEngine::new(
+                repo,
+                cloud.clone(),
+                auth.clone(),
+                pool.clone(),
+            ));
 
             // FAZ 2.2 background tasks. The scheduler runs the hourly cron;
             // The network monitor probes /health every 30s and triggers a
@@ -93,6 +100,18 @@ pub fn run() {
             let network = network::start(cloud_url.clone(), engine.clone());
 
             app.manage(SyncState { engine, network });
+
+            // FAZ 3.2: WS client for live multi-user CRDT exchange. The
+            // engine is initialised lazily on the first subscribe_crdt
+            // call (it needs a tauri::AppHandle for emit), so we just
+            // stash the dependencies here.
+            let ws = WsClient::new(
+                Arc::new(cloud),
+                auth,
+                PendingOpRepo::new(pool),
+                app.handle().clone(),
+            );
+            app.manage(CrdtState { ws });
 
             Ok(())
         })
@@ -113,6 +132,9 @@ pub fn run() {
             disconnect_cloud,
             trigger_sync,
             get_sync_status,
+            subscribe_crdt,
+            apply_local_op,
+            unsubscribe_crdt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
