@@ -1,32 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { IDiaryRepository } from './IDiaryRepository';
-import { SQLiteRepository } from './SQLiteRepository';
 import { TauriRepository } from './TauriRepository';
 import { logger } from '../utils/logger';
 
 const RepositoryCtx = createContext<IDiaryRepository | null>(null);
 
-/**
- * Default backend selector.
- *
- * - `tauri` (production default): all reads/writes go through Rust via
- *   `invoke('diary_*')`. Rust holds the SQLite handle today, Postgres
- *   tomorrow (FAZ 1.1). This is the path the rest of the migration plan
- *   assumes.
- * - `sqlite` (rollback escape hatch): the legacy direct-from-frontend
- *   SQLiteRepository. Set `VITE_REPOSITORY_BACKEND=sqlite` if Rust's
- *   side breaks during transition; deleted entirely in FAZ 1.3.
- */
-function pickDefaultRepository(): IDiaryRepository {
-  const flag = (import.meta.env.VITE_REPOSITORY_BACKEND ?? '').toLowerCase();
-  if (flag === 'sqlite') {
-    return new SQLiteRepository();
-  }
-  return new TauriRepository();
-}
-
 interface ProviderProps {
   children: ReactNode;
+  /**
+   * Test seam: vitest specs inject a mock IDiaryRepository instead of the
+   * real Tauri-backed one. Production never passes this.
+   */
   repository?: IDiaryRepository;
 }
 
@@ -39,7 +23,11 @@ export function RepositoryProvider({ children, repository }: ProviderProps) {
       setRepo(repository);
       return;
     }
-    const instance = pickDefaultRepository();
+    // Production path: every read/write goes through Rust via
+    // invoke('diary_*'), which talks to Postgres. There is no longer a
+    // pre-FAZ-1.3 SQLite fallback — that escape hatch exited together with
+    // the SQLiteRepository / VITE_REPOSITORY_BACKEND flag.
+    const instance = new TauriRepository();
     instance
       .init()
       .then(() => setRepo(instance))

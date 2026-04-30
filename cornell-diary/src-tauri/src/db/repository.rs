@@ -11,7 +11,10 @@ use crate::error::DomainError;
 #[async_trait]
 pub trait EntryRepository: Send + Sync {
     /// One-time bootstrap: open the connection / pool, apply any required
-    /// pragmas. Idempotent.
+    /// pragmas. Idempotent. Today the production Postgres impl makes this
+    /// a no-op (the pool is built in lib.rs setup), but the trait keeps it
+    /// for future backends with their own lazy-init paths.
+    #[allow(dead_code)]
     async fn init(&self) -> Result<(), DomainError>;
 
     async fn get_by_date(&self, date: &str) -> Result<Option<DiaryEntry>, DomainError>;
