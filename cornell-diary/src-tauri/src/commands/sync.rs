@@ -9,13 +9,15 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::error::DomainError;
-use crate::sync::{ConnectReport, SyncEngine, SyncReport, SyncStatus};
+use crate::sync::{ConnectReport, NetworkMonitor, SyncEngine, SyncReport, SyncStatus};
 
 /// Held in `tauri::State` alongside `AppState`. The engine is `Arc`-wrapped
-/// so the future scheduler (FAZ 2.2) can clone it into background tasks.
+/// so the scheduler / network monitor (FAZ 2.2) can clone it into
+/// background tasks.
 #[derive(Clone)]
 pub struct SyncState {
     pub engine: Arc<SyncEngine>,
+    pub network: NetworkMonitor,
 }
 
 #[tauri::command]
@@ -40,9 +42,5 @@ pub async fn trigger_sync(state: State<'_, SyncState>) -> Result<SyncReport, Dom
 
 #[tauri::command]
 pub async fn get_sync_status(state: State<'_, SyncState>) -> Result<SyncStatus, DomainError> {
-    // Online flag is filled by FAZ 2.2's network monitor. Until then the
-    // best heuristic is "do we hold a token?" — the engine reports it as
-    // `enabled` so we leave `online = enabled` for now.
-    let s = state.engine.status(true).await?;
-    Ok(s)
+    state.engine.status(state.network.is_online()).await
 }

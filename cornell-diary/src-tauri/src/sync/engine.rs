@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use tokio::sync::Mutex;
 
 use crate::db::{models::CueItem, DiaryEntry, EntryRepository};
 use crate::error::DomainError;
@@ -27,6 +28,9 @@ pub struct SyncEngine {
     client: CloudClient,
     auth: Arc<AuthManager>,
     pool: PgPool,
+    /// Single-instance gate. The hourly scheduler and a network-up trigger
+    /// must not race on dirty rows — the second caller waits.
+    cycle_lock: Mutex<()>,
 }
 
 impl SyncEngine {
@@ -41,6 +45,7 @@ impl SyncEngine {
             client,
             auth,
             pool,
+            cycle_lock: Mutex::new(()),
         }
     }
 
@@ -112,6 +117,9 @@ impl SyncEngine {
             return Err(DomainError::Validation("not connected to cloud".into()));
         }
 
+        // Hold the single-instance gate for the entire cycle. Cheap: the
+        // critical section is one round-trip per minute at most.
+        let _guard = self.cycle_lock.lock().await;
         let started = Instant::now();
         let mut report = SyncReport::default();
 
