@@ -14,7 +14,11 @@ use crate::commands::sync::{
     connect_cloud, disconnect_cloud, get_sync_status, trigger_sync, SyncState,
 };
 use crate::crdt::{PendingOpRepo, WsClient};
-use crate::db::{build_pool, run_migrations, EntryRepository, PostgresEntryRepository};
+use crate::db::{build_pool, run_migrations, EntryRepository};
+#[cfg(not(diary_sqlite))]
+use crate::db::PostgresEntryRepository;
+#[cfg(diary_sqlite)]
+use crate::db::SqliteEntryRepository;
 use crate::sync::auth::AuthManager;
 use crate::sync::{network, CloudClient, SyncEngine};
 // `scheduler` module exists (sync::scheduler) but is currently NOT wired into
@@ -35,6 +39,46 @@ mod sync;
 
 const DEFAULT_CLOUD_URL: &str = "http://127.0.0.1:5000";
 
+#[cfg(not(diary_sqlite))]
+const STORAGE_BACKEND: &str = "postgres";
+#[cfg(diary_sqlite)]
+const STORAGE_BACKEND: &str = "sqlite";
+
+/// Where the local DB lives.
+///
+/// - Postgres: must come from the `DATABASE_URL` env var. There's no
+///   sensible default — you don't want a fresh checkout silently
+///   pointing at a previous user's prod DB.
+/// - SQLite: a single file under the app's data directory (Android:
+///   `/data/data/com.deniz.cornelldiary/files/cornell_diary.db`,
+///   resolved by `tauri::Manager::path()`). Override with
+///   `DATABASE_URL` if you want to point at a custom file (used by
+///   integration tests that drive a temp file).
+#[cfg(not(diary_sqlite))]
+fn resolve_database_url(_app: &tauri::App) -> anyhow::Result<String> {
+    std::env::var("DATABASE_URL")
+        .map_err(|_| anyhow::anyhow!("DATABASE_URL must be set (e.g. via .env)"))
+}
+
+#[cfg(diary_sqlite)]
+fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
+    if let Ok(url) = std::env::var("DATABASE_URL") {
+        if !url.is_empty() {
+            return Ok(url);
+        }
+    }
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| anyhow::anyhow!("app data dir: {e:?}"))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| anyhow::anyhow!("create app data dir: {e:?}"))?;
+    let path = dir.join("cornell_diary.db");
+    // sqlite uri scheme — sqlx parses `sqlite://path?...` and our
+    // build_pool sets create_if_missing so the first launch self-seeds.
+    Ok(format!("sqlite://{}", path.display()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tracing_subscriber::fmt()
@@ -52,24 +96,31 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            // Postgres is the sole storage backend (FAZ 1.3). DATABASE_URL is
-            // required at boot — there is no SQLite fallback any more.
-            let database_url = std::env::var("DATABASE_URL")
-                .map_err(|_| anyhow::anyhow!("DATABASE_URL must be set (e.g. via .env)"))?;
-            tracing::info!(target: "cornell_diary", "postgres backend");
+            // Storage backend is picked at compile time via Cargo
+            // features. On desktop the `postgres` feature is on and
+            // DATABASE_URL must point at a reachable Postgres. On
+            // Android (and future iOS) the `sqlite` feature is on and
+            // we resolve the SQLite file inside the app's data dir —
+            // there's no way for the user to misconfigure it.
+            let database_url = resolve_database_url(app)?;
+            tracing::info!(target: "cornell_diary", backend = STORAGE_BACKEND, %database_url, "storage backend");
 
             let pool = tauri::async_runtime::block_on(async {
                 let pool = build_pool(&database_url)
                     .await
-                    .map_err(|e| anyhow::anyhow!("postgres pool: {e:?}"))?;
+                    .map_err(|e| anyhow::anyhow!("db pool: {e:?}"))?;
                 run_migrations(&pool)
                     .await
-                    .map_err(|e| anyhow::anyhow!("postgres migrate: {e:?}"))?;
+                    .map_err(|e| anyhow::anyhow!("db migrate: {e:?}"))?;
                 Ok::<_, anyhow::Error>(pool)
             })?;
 
+            #[cfg(not(diary_sqlite))]
             let repo: Arc<dyn EntryRepository> =
                 Arc::new(PostgresEntryRepository::new(pool.clone()));
+            #[cfg(diary_sqlite)]
+            let repo: Arc<dyn EntryRepository> =
+                Arc::new(SqliteEntryRepository::new(pool.clone()));
             app.manage(AppState {
                 repo: repo.clone(),
                 pg_pool: Some(pool.clone()),

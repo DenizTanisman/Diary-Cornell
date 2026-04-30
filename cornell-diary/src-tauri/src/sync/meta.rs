@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use crate::db::DbPool;
 use uuid::Uuid;
 
 use crate::error::DomainError;
@@ -39,7 +39,7 @@ type MetadataRow = (
     Option<String>,
 );
 
-pub async fn read(pool: &PgPool) -> Result<SyncMetadata, DomainError> {
+pub async fn read(pool: &DbPool) -> Result<SyncMetadata, DomainError> {
     let row: MetadataRow = sqlx::query_as(
         "SELECT peer_id, cloud_user_id, cloud_journal_id, access_token, refresh_token, \
                 token_expires_at, last_pull_at, last_push_at, last_full_sync_at, \
@@ -66,7 +66,7 @@ pub async fn read(pool: &PgPool) -> Result<SyncMetadata, DomainError> {
 }
 
 pub async fn save_tokens(
-    pool: &PgPool,
+    pool: &DbPool,
     access_token: &str,
     refresh_token: &str,
     token_expires_at: Option<DateTime<Utc>>,
@@ -97,7 +97,7 @@ pub async fn save_tokens(
     Ok(())
 }
 
-pub async fn save_journal(pool: &PgPool, journal_id: Uuid) -> Result<(), DomainError> {
+pub async fn save_journal(pool: &DbPool, journal_id: Uuid) -> Result<(), DomainError> {
     sqlx::query("UPDATE sync_metadata SET cloud_journal_id = $1 WHERE id = 1")
         .bind(journal_id)
         .execute(pool)
@@ -106,7 +106,7 @@ pub async fn save_journal(pool: &PgPool, journal_id: Uuid) -> Result<(), DomainE
     Ok(())
 }
 
-pub async fn save_pull_at(pool: &PgPool, at: DateTime<Utc>) -> Result<(), DomainError> {
+pub async fn save_pull_at(pool: &DbPool, at: DateTime<Utc>) -> Result<(), DomainError> {
     sqlx::query("UPDATE sync_metadata SET last_pull_at = $1 WHERE id = 1")
         .bind(at)
         .execute(pool)
@@ -115,7 +115,7 @@ pub async fn save_pull_at(pool: &PgPool, at: DateTime<Utc>) -> Result<(), Domain
     Ok(())
 }
 
-pub async fn save_push_at(pool: &PgPool, at: DateTime<Utc>) -> Result<(), DomainError> {
+pub async fn save_push_at(pool: &DbPool, at: DateTime<Utc>) -> Result<(), DomainError> {
     sqlx::query("UPDATE sync_metadata SET last_push_at = $1, last_full_sync_at = $1 WHERE id = 1")
         .bind(at)
         .execute(pool)
@@ -124,7 +124,7 @@ pub async fn save_push_at(pool: &PgPool, at: DateTime<Utc>) -> Result<(), Domain
     Ok(())
 }
 
-pub async fn clear(pool: &PgPool) -> Result<(), DomainError> {
+pub async fn clear(pool: &DbPool) -> Result<(), DomainError> {
     sqlx::query(
         "UPDATE sync_metadata SET \
             access_token = NULL, refresh_token = NULL, token_expires_at = NULL, \

@@ -6,10 +6,9 @@
 
 use std::sync::Arc;
 
-use sqlx::PgPool;
 use tauri::State;
 
-use crate::db::{BulkResult, DiaryEntry, EntryRepository};
+use crate::db::{BulkResult, DbPool, DiaryEntry, EntryRepository};
 use crate::error::DomainError;
 
 /// Shared application state; held by Tauri once `manage`d in `lib::run()`.
@@ -19,9 +18,12 @@ use crate::error::DomainError;
 pub struct AppState {
     pub repo: Arc<dyn EntryRepository>,
     /// Currently no command reads it directly — clippy flags it as dead
-    /// until the sync surface lands.
+    /// until the sync surface lands. Field name `pg_pool` is preserved
+    /// for backwards compatibility with existing call sites; it now
+    /// holds whatever `DbPool` resolves to (PgPool on desktop,
+    /// SqlitePool on Android).
     #[allow(dead_code)]
-    pub pg_pool: Option<PgPool>,
+    pub pg_pool: Option<DbPool>,
 }
 
 #[tauri::command]
