@@ -235,6 +235,103 @@ impl WsClient {
         Ok(text)
     }
 
+    /// Diff `new_text` against the current materialised text and emit
+    /// the minimum number of `local_insert` / `local_delete` ops to
+    /// reach it. Each op is broadcast (or queued) the same way
+    /// `apply_local_op` would handle one. Returns the new materialised
+    /// text after the diff lands locally — guaranteed to equal
+    /// `new_text` modulo any concurrent remote ops that arrived during
+    /// the diff (extremely unlikely in the keystroke window, but
+    /// idempotent if it does happen).
+    ///
+    /// The diff is the simplest possible: trim a common prefix, trim a
+    /// common suffix, treat the remaining old chars as deletions and
+    /// the remaining new chars as inserts. Good enough for keystroke-
+    /// granularity edits and for paste-replace.
+    pub async fn apply_local_text(
+        self: &Arc<Self>,
+        entry_date: &str,
+        field: &str,
+        new_text: &str,
+    ) -> Result<String, DomainError> {
+        let key = DocKey::new(entry_date, field);
+        let doc = self
+            .documents
+            .read()
+            .await
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| {
+                DomainError::Validation("subscribe must precede apply_local_text".into())
+            })?;
+
+        let visible = doc.visible_chars();
+        let old_chars: Vec<char> = visible.iter().map(|(_, c)| *c).collect();
+        let old_ids: Vec<String> = visible.iter().map(|(id, _)| id.clone()).collect();
+        let new_chars: Vec<char> = new_text.chars().collect();
+
+        // Common prefix.
+        let mut p = 0usize;
+        while p < old_chars.len() && p < new_chars.len() && old_chars[p] == new_chars[p] {
+            p += 1;
+        }
+        // Common suffix (capped so we don't overlap the prefix).
+        let mut s = 0usize;
+        while s < old_chars.len() - p
+            && s < new_chars.len() - p
+            && old_chars[old_chars.len() - 1 - s] == new_chars[new_chars.len() - 1 - s]
+        {
+            s += 1;
+        }
+
+        let connected = matches!(self.state().await, WsState::Connected);
+
+        // 1. Delete the chars in the old middle (right-to-left so the
+        //    char_id list we cached above stays valid).
+        let mut emitted: Vec<CharOp> = Vec::new();
+        if old_chars.len() > p + s {
+            for i in (p..old_chars.len() - s).rev() {
+                if let Some(op) = doc.local_delete(&old_ids[i]) {
+                    emitted.push(op);
+                }
+            }
+        }
+
+        // 2. Insert the new middle, anchored at the prefix's last char
+        //    (or HEAD if prefix is empty). Each new char's prev_id
+        //    chains forward so they materialise in order.
+        if new_chars.len() > p + s {
+            let mut prev_id: Option<String> = if p == 0 {
+                None
+            } else {
+                Some(old_ids[p - 1].clone())
+            };
+            for &ch in &new_chars[p..new_chars.len() - s] {
+                let op = doc.local_insert(ch, prev_id.as_deref());
+                prev_id = Some(op.char_id().to_string());
+                emitted.push(op);
+            }
+        }
+
+        for op in emitted {
+            if connected {
+                let frame = WsOut::CrdtOp {
+                    entry_date: entry_date.to_string(),
+                    field: field.to_string(),
+                    op: op.clone(),
+                };
+                if let Err(e) = self.send_frame(&frame).await {
+                    tracing::warn!(target: "cornell_diary::ws", "wire send failed, queueing: {e}");
+                    self.pending_ops.queue(entry_date, field, &op).await?;
+                }
+            } else {
+                self.pending_ops.queue(entry_date, field, &op).await?;
+            }
+        }
+
+        Ok(doc.materialize())
+    }
+
     /// Tear down the live socket. Pending ops stay on disk so a future
     /// reconnect picks them up.
     pub async fn disconnect(&self) {

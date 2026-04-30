@@ -50,6 +50,12 @@
     "languageEN": "English",
     "autoSave": "Auto-save interval"
   },
+  "crdt": {
+    "presence": {
+      "single": "{peer} is also typing",
+      "many": "{count} other people typing"
+    }
+  },
   "sync": {
     "title": "Sync",
     "exportTitle": "Export (JSON)",
