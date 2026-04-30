@@ -50,7 +50,7 @@ impl PendingOpRepo {
             .map_err(|e| DomainError::Storage(format!("serialize charop: {e}")))?;
         let row: (i64,) = sqlx::query_as(
             "INSERT INTO pending_ops (entry_date, field_name, op_payload, pushed) \
-             VALUES ($1::date, $2, $3, FALSE) RETURNING id",
+             VALUES ($1, $2, $3, FALSE) RETURNING id",
         )
         .bind(entry_date)
         .bind(field_name)
@@ -64,16 +64,7 @@ impl PendingOpRepo {
     /// Snapshot of unpushed ops in chronological order. The WS client
     /// iterates this on reconnect and pushes each in turn.
     pub async fn list_unpushed(&self) -> Result<Vec<PendingOp>, DomainError> {
-        let rows = sqlx::query_as::<
-            _,
-            (
-                i64,
-                chrono::NaiveDate,
-                String,
-                serde_json::Value,
-                DateTime<Utc>,
-            ),
-        >(
+        let rows = sqlx::query_as::<_, (i64, String, String, serde_json::Value, DateTime<Utc>)>(
             "SELECT id, entry_date, field_name, op_payload, created_at \
              FROM pending_ops WHERE pushed = FALSE ORDER BY created_at, id",
         )
@@ -87,7 +78,7 @@ impl PendingOpRepo {
                 .map_err(|e| DomainError::Storage(format!("decode charop {id}: {e}")))?;
             out.push(PendingOp {
                 id,
-                entry_date: entry_date.format("%Y-%m-%d").to_string(),
+                entry_date,
                 field_name,
                 op,
                 created_at,
@@ -150,6 +141,8 @@ mod tests {
         // pending_ops.entry_date FKs to diary_entries — make sure the
         // referenced row exists before queueing.
         let repo = PostgresEntryRepository::new(pool.clone());
+        // version=1 so that if a stray run leaves this row in the prod
+        // DB, Cloud's `version >= 1` check still accepts a manual sync.
         repo.upsert(crate::db::DiaryEntry {
             date: "2026-04-29".into(),
             diary: "seed".into(),
@@ -159,7 +152,7 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
             device_id: None,
-            version: 0,
+            version: 1,
         })
         .await
         .unwrap();

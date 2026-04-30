@@ -685,9 +685,12 @@ mod integration_tests {
         .ok()?;
         // Seed the diary entry the FK in pending_ops requires (the
         // broadcast path doesn't queue, but apply_local_op tests do).
+        // version=1 is the contract Cloud enforces (`ge: 1`) — seeding
+        // version=0 leaks a row that blocks every later push with a
+        // 422 from Cloud.
         sqlx::query(
             "INSERT INTO diary_entries (date, diary, version, created_at, updated_at) \
-             VALUES ('2026-04-29', '', 0, now(), now()) \
+             VALUES ('2026-04-29', '', 1, now(), now()) \
              ON CONFLICT (date) DO NOTHING",
         )
         .execute(&pool)
