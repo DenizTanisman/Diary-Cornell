@@ -1,106 +1,116 @@
 # Cornell Diary
 
-Offline-first, cross-platform personal diary app built with **Tauri 2.0** and **React 19**. The classic Cornell note-taking method, adapted for daily journaling — dynamic cue sections on the left, a spacious main notes area on the right, and a summary + quote bar at the bottom.
+Cross-device personal diary built on **Tauri 2 + React 19 + Postgres**, with optional real-time
+multi-user editing via a char-level CRDT over WebSockets. Classic Cornell layout — dynamic cue
+sections on the left, a spacious main notes area on the right, summary + quote bar at the bottom.
 
 ## Highlights
 
-- **Small & fast** — ships as a lightweight Tauri binary (orders of magnitude smaller than Electron).
-- **Local-first & private** — every entry stays in a local SQLite database on your device. No cloud, no telemetry.
-- **Cross-platform ready** — macOS today; iOS and Android share the same React + Rust codebase.
-- **Repository & Strategy patterns** — the data layer is behind an `IDiaryRepository` interface, so you can swap SQLite for a remote (e.g. future Jarvis API) repository without touching UI.
-- **Manual sync** — export/import the archive as JSON, or transfer between devices via chunked, animated QR codes.
-- **TypeScript strict mode**, Vitest unit + integration tests, and Turkish + English localization out of the box.
+- **Postgres-backed** local store. Single backend across desktop and mobile, no SQLite fallback.
+  Schema in [`src-tauri/postgres_migrations/`](src-tauri/postgres_migrations).
+- **Optional Cloud sync (FAZ 2)** — REST round-trip (`/auth/login`, `/journals`, `/pull`, `/push`).
+  Hourly + on-network-recovery + manual triggers. Last-write-wins on `version` with an
+  `updated_at` tie-break and a per-row `is_dirty` flag.
+- **Live multi-user edit (FAZ 3)** — RGA-style char-level CRDT in Rust
+  (`src-tauri/src/crdt/`), driven by a single shared WebSocket. Off-line keystrokes land in
+  `pending_ops` and drain on reconnect. Convergence is property-tested with 200 random ops in 3
+  orderings.
+- **Cross-platform ready** — same React + Rust codebase for macOS today; iOS / Android share the
+  Tauri runtime.
+- **TypeScript strict mode**, Vitest, Postgres-gated Rust integration tests, Turkish + English
+  localization.
 
-## Tech Stack
+## Tech stack
 
-Tauri 2 · React 19 · TypeScript · SQLite (`tauri-plugin-sql`) · Vite · Zustand · Zod · date-fns · react-router · qrcode + qr-scanner · Vitest
+Tauri 2 · React 19 · TypeScript · Vite · Zustand · Zod · Postgres 16 (sqlx) · tokio-tungstenite ·
+reqwest (rustls) · jsonwebtoken · tokio-cron-scheduler · Vitest.
 
 ## Architecture
 
 ```
-UI (React + TypeScript)
-   │
-Hooks (useDiary, useDateNavigator, useTheme, useKeyboardShortcuts)
-   │
-Repository Interface (IDiaryRepository)
-   │
-SQLiteRepository  ◄─────── future: JarvisAPIRepository
-   │
-Tauri plugins (sql / fs / dialog / os / clipboard-manager)
-   │
-SQLite database (local)
+React (UI, hooks: useDiary, useCrdtChannel, useSyncStatus)
+  │  invoke() / listen()
+Tauri commands (commands/{entries,sync,crdt}.rs)
+  │
+Repository (EntryRepository) ── Sync engine (REST) ── WS client (live CRDT)
+  │                              │                    │
+  └───────── Postgres (sqlx pool) ───────────────────  └── pending_ops queue
+                                                          + CrdtDocument map
 ```
 
-Sync is a separate module: `exporter` → checksummed JSON, `importer` → schema-validated `bulkUpsert`, with last-write-wins conflict resolution and optional QR chunking for large archives.
+Cloud sync and CRDT are **opt-in** — Diary works fully offline against just a local Postgres.
 
 ## Requirements
 
-- macOS (Phase A) with Xcode Command Line Tools for building
-- Node.js ≥ 20
-- pnpm ≥ 9
-- Rust toolchain (`rustup`) ≥ 1.80
+- macOS for Phase A (iOS + Android land via the same Tauri runtime).
+- Node.js ≥ 20, pnpm ≥ 9.
+- Rust toolchain ≥ 1.80.
+- Postgres 16, reachable on the URL in `DATABASE_URL` (a local Docker container is the standard
+  dev setup — see `docker-compose.yml`).
+- Cloud server (optional, only for FAZ 2/3) — see `journal_ai_reporter` repo.
 
-## Getting Started
+## Getting started
 
 ```bash
+# 1. Postgres (via Docker compose or your own instance)
+docker compose up -d diary_postgres
+
+# 2. Env
+cp .env.example .env   # then edit DATABASE_URL / CLOUD_URL as needed
+
+# 3. Run
 pnpm install
+pnpm tauri dev         # full app (Tauri window + Vite dev server)
+pnpm dev               # frontend-only, no Rust / DB
 
-# Desktop dev server (opens the Tauri window)
-pnpm tauri dev
-
-# Production build (macOS .dmg / .app)
-pnpm tauri build
-
-# Frontend-only dev (in-browser, no DB access)
-pnpm dev
-
-# Run tests
-pnpm test
-pnpm test:coverage
+# 4. Tests
+DATABASE_URL=... cargo test --manifest-path src-tauri/Cargo.toml --lib   # 47 tests
+pnpm test                                                                # 58 tests
 pnpm typecheck
 ```
 
-On first launch the app creates `cornell_diary.db` in the OS application-data directory and seeds `app_settings`.
+The Rust setup hook reads `DATABASE_URL` directly from the environment (no automatic `.env`
+loading). Either export the vars in your shell or use a wrapper script — see
+[OPERATIONS.md](OPERATIONS.md#environment).
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
-| Shortcut      | Action             |
-| ------------- | ------------------ |
-| `⌘/Ctrl + S`  | Save immediately   |
-| `⌘/Ctrl + ←`  | Previous day       |
-| `⌘/Ctrl + →`  | Next day           |
-| `⌘/Ctrl + T`  | Go to today        |
+| Shortcut       | Action            |
+| -------------- | ----------------- |
+| `⌘/Ctrl + S`   | Save immediately  |
+| `⌘/Ctrl + ←`   | Previous day      |
+| `⌘/Ctrl + →`   | Next day          |
+| `⌘/Ctrl + T`   | Go to today       |
 
-## Folder Layout
+## Folder layout
 
 ```
 src/
-  components/
-    cornell/      # CornellLayout, DateHeader, CueSection, MainNotesArea, SummaryBar
-    sync/         # ExportDialog, ImportDialog, QRGenerator, QRScanner
-    common/       # AppToolbar, DateNavigator, SaveIndicator, ErrorBoundary
-    ui/           # Modal primitives
-  db/             # IDiaryRepository, SQLiteRepository, RepositoryContext
-  hooks/          # useDiary, useDateNavigator, useTheme, useKeyboardShortcuts
-  sync/           # exporter, importer, conflictResolver, qrChunker, qrAssembler
-  stores/         # settingsStore, syncStore (Zustand)
-  utils/          # date, crypto, deviceId, sanitize, validation, logger
-  locales/        # tr.json, en.json + tiny t() function
-  pages/          # DiaryPage, ArchivePage, SettingsPage, SyncPage, NotFoundPage
-  styles/         # globals.css, cornell.css, themes.css
+  components/cornell/   CornellLayout, MainNotesArea, PresenceBadge, …
+  components/sync/      CloudSyncPanel, SyncIndicator, ExportDialog, …
+  hooks/                useDiary, useCrdtChannel, useSyncStatus, …
+  db/                   IDiaryRepository (TS contract), TauriRepository (invoke wrapper)
+  sync/                 exporter / importer / qrChunker (manual JSON / QR sync)
+  types/                diary, cloudSync, crdt
+  pages/                DiaryPage, ArchivePage, SyncPage, SettingsPage
 src-tauri/
-  migrations/     # 001_initial.sql
-  capabilities/   # default.json (Tauri 2 permissions)
-  src/lib.rs      # Registers all plugins + migrations
+  postgres_migrations/  0001_initial, 0002_sync_metadata, 0003_pending_ops
+  src/db/               EntryRepository trait + Postgres impl
+  src/sync/             CloudClient, SyncEngine, AuthManager, network monitor
+  src/crdt/             CharNode + CrdtDocument + WsClient + pending_ops
+  src/commands/         Tauri command handlers (entries, sync, crdt)
 tests/
-  unit/           # date, crypto, exporter, importer, conflictResolver,
-                  # qrChunker, stores, locales, sanitize, repositoryMapping, SaveIndicator
-  integration/    # useDiary
+  unit/                 frontend Vitest unit tests
+  integration/          useDiary integration tests
+docs:
+  OPERATIONS.md         migration / rollback / day-2 ops
+  SYNC_BEHAVIOR.md      sync / CRDT semantics, pending_ops, conflicts
+  THREAT_MODEL.md       OWASP review, accepted risks, capabilities
 ```
 
-## Data Format (Sync v1.0)
+## Sync data format
 
-Exports are plain JSON with a SHA-256 checksum over a canonicalized entries array. Schema validation uses Zod; checksum mismatches require explicit user confirmation to import.
+Manual JSON exports keep the v1.0 envelope (Zod-validated, SHA-256 checksum):
 
 ```json
 {
@@ -108,23 +118,31 @@ Exports are plain JSON with a SHA-256 checksum over a canonicalized entries arra
   "format": "cornell-diary-export",
   "version": "1.0.0",
   "exportedAt": "...",
-  "deviceId": "host-abc12345",
+  "deviceId": "...",
   "entryCount": 42,
   "checksum": "sha256:...",
-  "entries": [ { "date": "YYYY-MM-DD", "diary": "...", "cueItems": [...], "summary": "...", "quote": "...", "createdAt": "...", "updatedAt": "...", "version": 1 } ]
+  "entries": [ { "date": "YYYY-MM-DD", "diary": "...", "cueItems": [...], … } ]
 }
 ```
 
-## Security Notes
+Cloud REST sync uses Cloud's `PushRequest` / `PullResponse` shapes — see
+[`src-tauri/src/sync/models.rs`](src-tauri/src/sync/models.rs).
 
-- All SQL uses parameterized queries (`$1, $2, …`) — no string concatenation.
-- Tauri capability scope limits filesystem access to `$APPDATA`, `$DOCUMENT`, `$DOWNLOAD`, `$HOME`.
-- Diary content never hits application logs; errors are logged at warn/error only.
-- No `dangerouslySetInnerHTML`; React escapes all user content.
+CRDT ops match Cloud's `CRDTOpDTO` (`op_type`, `char_id`, `char_value`, `prev_id`, `peer_id`,
+`lamport`, `seq`) so the same JSON works in both directions without translation.
 
-## Future: Jarvis Integration
+## Security & threat model
 
-Because the UI talks to `IDiaryRepository`, you can add a `JarvisAPIRepository` that calls a remote HTTP API and swap it in via DI without touching any component.
+See [THREAT_MODEL.md](THREAT_MODEL.md). Highlights:
+
+- All SQL goes through sqlx parameterized queries.
+- Tauri capability scope locks filesystem access to `$APPDATA`, `$DOCUMENT`, `$DOWNLOAD`, `$HOME`.
+- The user's Cloud password is only on the wire during `connect_cloud`; it never lands in the DB
+  or logs. JWT tokens are stored in `sync_metadata` (encrypted-at-rest at Postgres level only —
+  full-disk encryption assumed, not in-app secret management).
+- Two known accepted risks from `cargo audit` (RUSTSEC-2023-0071 in `rsa` via transitive
+  `sqlx-mysql`, RUSTSEC-2024-0413 in `atk` via gtk3) — both deep transitives we can't drop, both
+  documented.
 
 ## License
 

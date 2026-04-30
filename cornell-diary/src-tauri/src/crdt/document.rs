@@ -666,6 +666,116 @@ mod tests {
         assert_eq!(visible[1].0, op_y.char_id());
     }
 
+    /// Soak test for the diff path that drives `apply_local_text`: drive
+    /// a single document through 500 random text mutations
+    /// (insert / delete / replace at a random offset) using the same
+    /// prefix/suffix-trim algorithm `WsClient::apply_local_text` runs.
+    /// After every mutation the doc must materialise back to the new
+    /// text exactly. A regression in `insert_node` or in the diff math
+    /// would surface here long before a multi-client test would notice.
+    #[test]
+    fn diff_path_soak_holds_under_500_random_mutations() {
+        struct Lcg(u64);
+        impl Lcg {
+            fn next(&mut self) -> u64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                self.0
+            }
+        }
+
+        // Replays WsClient::apply_local_text against a doc directly,
+        // bypassing the WS / pending_ops surface so we can iterate fast.
+        fn drive(doc: &CrdtDocument, new_text: &str) {
+            let visible = doc.visible_chars();
+            let old_chars: Vec<char> = visible.iter().map(|(_, c)| *c).collect();
+            let old_ids: Vec<String> = visible.iter().map(|(id, _)| id.clone()).collect();
+            let new_chars: Vec<char> = new_text.chars().collect();
+
+            let mut p = 0usize;
+            while p < old_chars.len() && p < new_chars.len() && old_chars[p] == new_chars[p] {
+                p += 1;
+            }
+            let mut s = 0usize;
+            while s < old_chars.len() - p
+                && s < new_chars.len() - p
+                && old_chars[old_chars.len() - 1 - s] == new_chars[new_chars.len() - 1 - s]
+            {
+                s += 1;
+            }
+            if old_chars.len() > p + s {
+                for i in (p..old_chars.len() - s).rev() {
+                    doc.local_delete(&old_ids[i]);
+                }
+            }
+            if new_chars.len() > p + s {
+                let mut prev_id: Option<String> = if p == 0 {
+                    None
+                } else {
+                    Some(old_ids[p - 1].clone())
+                };
+                for &ch in &new_chars[p..new_chars.len() - s] {
+                    let op = doc.local_insert(ch, prev_id.as_deref());
+                    prev_id = Some(op.char_id().to_string());
+                }
+            }
+        }
+
+        let mut rng = Lcg(0xDEADBEEFCAFE1234);
+        let doc = CrdtDocument::new("alice");
+        let mut text = String::new();
+
+        for _ in 0..500 {
+            let op = rng.next() % 4;
+            let len = text.chars().count();
+            match op {
+                0 if len < 200 => {
+                    // insert a random ASCII letter at a random offset
+                    let offset = if len == 0 {
+                        0
+                    } else {
+                        (rng.next() as usize) % (len + 1)
+                    };
+                    let ch = char::from(b'a' + ((rng.next() % 26) as u8));
+                    let mut next: String = text.chars().take(offset).collect();
+                    next.push(ch);
+                    next.extend(text.chars().skip(offset));
+                    text = next;
+                }
+                1 if len > 0 => {
+                    // delete one char at a random offset
+                    let offset = (rng.next() as usize) % len;
+                    text = text
+                        .chars()
+                        .enumerate()
+                        .filter(|(i, _)| *i != offset)
+                        .map(|(_, c)| c)
+                        .collect();
+                }
+                2 if len > 0 => {
+                    // replace a contiguous run with a random run of letters
+                    let start = (rng.next() as usize) % len;
+                    let end = start + 1 + (rng.next() as usize) % (len - start).max(1);
+                    let new_run: String = (0..((rng.next() % 5) + 1))
+                        .map(|_| char::from(b'a' + ((rng.next() % 26) as u8)))
+                        .collect();
+                    let prefix: String = text.chars().take(start).collect();
+                    let suffix: String = text.chars().skip(end).collect();
+                    text = format!("{prefix}{new_run}{suffix}");
+                }
+                _ => continue, // no-op when constraints don't match
+            }
+            drive(&doc, &text);
+            assert_eq!(
+                doc.materialize(),
+                text,
+                "diff path desynced from expected text after a mutation"
+            );
+        }
+    }
+
     /// CharOp wire serialisation must match Cloud's CRDTOpDTO shape.
     /// Verified by round-tripping a sample insert + delete through serde
     /// and asserting the JSON keys are exactly what Cloud's OpenAPI spec
