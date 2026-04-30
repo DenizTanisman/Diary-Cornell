@@ -44,9 +44,17 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 /// query for the current state. The task runs until the runtime exits;
 /// FAZ 2.2 doesn't expose a stop button (Tauri kills the runtime on app
 /// quit, which is enough).
+///
+/// **Important:** uses `tauri::async_runtime::spawn` rather than
+/// `tokio::spawn`. Tauri's setup hook does NOT execute inside a Tokio
+/// reactor context, so a bare `tokio::spawn` panics with "no reactor
+/// running". `tauri::async_runtime::spawn` schedules onto Tauri's own
+/// runtime (which under the hood is a multi-thread Tokio runtime) and
+/// works from any thread, including the macOS main thread during
+/// did_finish_launching.
 pub fn start(cloud_url: String, engine: Arc<SyncEngine>) -> NetworkMonitor {
     let (tx, rx) = watch::channel(NetworkState::Unknown);
-    tokio::spawn(probe_loop(cloud_url, engine, tx));
+    tauri::async_runtime::spawn(probe_loop(cloud_url, engine, tx));
     NetworkMonitor { state_rx: rx }
 }
 
