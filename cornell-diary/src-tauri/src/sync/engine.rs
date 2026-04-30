@@ -59,11 +59,11 @@ impl SyncEngine {
 
     pub async fn connect(
         &self,
-        email: &str,
+        username: &str,
         password: &str,
         device_label: &str,
     ) -> Result<ConnectReport, DomainError> {
-        let tokens = self.client.login(email, password).await?;
+        let tokens = self.client.login(username, password).await?;
         let exp = tokens.expires_at;
         meta::save_tokens(
             &self.pool,

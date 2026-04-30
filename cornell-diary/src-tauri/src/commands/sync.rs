@@ -23,11 +23,14 @@ pub struct SyncState {
 #[tauri::command]
 pub async fn connect_cloud(
     state: State<'_, SyncState>,
-    email: String,
+    username: String,
     password: String,
     device_label: String,
 ) -> Result<ConnectReport, DomainError> {
-    state.engine.connect(&email, &password, &device_label).await
+    state
+        .engine
+        .connect(&username, &password, &device_label)
+        .await
 }
 
 #[tauri::command]

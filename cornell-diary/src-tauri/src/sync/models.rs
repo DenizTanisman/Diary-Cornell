@@ -14,9 +14,12 @@ use uuid::Uuid;
 // Cloud REST request / response envelopes
 // ---------------------------------------------------------------------------
 
+/// Cloud's `/auth/login` validates `{ username, password }`. The frontend
+/// labels the field "Kullanıcı adı" so the user types the same handle they
+/// registered with; we pass it through verbatim.
 #[derive(Debug, Clone, Serialize)]
 pub struct LoginRequest<'a> {
-    pub email: &'a str,
+    pub username: &'a str,
     pub password: &'a str,
 }
 
