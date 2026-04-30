@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { useT } from '../../locales';
 import { todayISO } from '../../utils/date';
+import { SyncIndicator } from '../sync/SyncIndicator';
 
 export function AppToolbar() {
   const t = useT();
@@ -21,6 +22,7 @@ export function AppToolbar() {
       {item('/sync', t('nav.sync'))}
       {item('/settings', t('nav.settings'))}
       <span className="toolbar__spacer" />
+      <SyncIndicator />
       <span className="cornell-header__counter" aria-hidden="true">
         Cornell Diary
       </span>

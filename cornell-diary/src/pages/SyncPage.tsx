@@ -3,6 +3,7 @@ import { ExportDialog } from '../components/sync/ExportDialog';
 import { ImportDialog } from '../components/sync/ImportDialog';
 import { QRGenerator } from '../components/sync/QRGenerator';
 import { QRScanner } from '../components/sync/QRScanner';
+import { CloudSyncPanel } from '../components/sync/CloudSyncPanel';
 import { useT } from '../locales';
 
 export function SyncPage() {
@@ -16,6 +17,8 @@ export function SyncPage() {
   return (
     <div className="page-container">
       <h1>{t('sync.title')}</h1>
+
+      <CloudSyncPanel />
 
       <div className="sync-card">
         <section className="sync-card__item">
