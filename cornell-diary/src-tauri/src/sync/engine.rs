@@ -63,20 +63,13 @@ impl SyncEngine {
         password: &str,
         device_label: &str,
     ) -> Result<ConnectReport, DomainError> {
+        // Step 1: login. We do *not* persist anything until we've also
+        // resolved a journal — partial state (token saved, journal_id
+        // NULL) leaves the user in a broken "Çevrimiçi: Evet, but every
+        // sync errors with cloud_journal_not_selected" loop.
         let tokens = self.client.login(username, password).await?;
-        let exp = tokens.expires_at;
-        meta::save_tokens(
-            &self.pool,
-            &tokens.access_token,
-            &tokens.refresh_token,
-            exp,
-            tokens.user_id,
-            tokens.peer_id.as_deref(),
-            Some(device_label),
-        )
-        .await?;
 
-        // First-connect onboarding: pick the first journal or create one.
+        // Step 2: pick or create the journal.
         let journals = self.client.list_journals(&tokens.access_token).await?;
         let chosen = match journals.into_iter().next() {
             Some(j) => j,
@@ -86,13 +79,38 @@ impl SyncEngine {
                     .await?
             }
         };
+
+        // Step 3: peer_id is generated locally — Cloud's TokenResponse
+        // doesn't include one. Reuse whatever was previously saved (so a
+        // disconnect+reconnect from the same device keeps its identity).
+        let existing = meta::read(&self.pool).await?;
+        let peer_id = if existing.peer_id.is_empty() {
+            uuid::Uuid::new_v4().simple().to_string()
+        } else {
+            existing.peer_id.clone()
+        };
+
+        // Step 4: persist atomically — tokens, peer_id, device_label, and
+        // journal id all in one happy commit. Anything before this point
+        // that errored leaves sync_metadata untouched.
+        let exp = tokens.expires_at;
+        meta::save_tokens(
+            &self.pool,
+            &tokens.access_token,
+            &tokens.refresh_token,
+            exp,
+            tokens.user_id,
+            Some(&peer_id),
+            Some(device_label),
+        )
+        .await?;
         meta::save_journal(&self.pool, chosen.id).await?;
 
         Ok(ConnectReport {
             user_id: tokens.user_id,
-            peer_id: tokens.peer_id.unwrap_or_default(),
+            peer_id,
             journal_id: chosen.id,
-            journal_name: chosen.name,
+            journal_name: chosen.title,
         })
     }
 
