@@ -24,6 +24,7 @@ use crate::sync::{network, CloudClient, SyncEngine};
 // already cover every functional sync path for now.
 
 mod commands;
+mod crdt;
 mod db;
 mod error;
 mod sync;
