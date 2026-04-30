@@ -11,6 +11,10 @@ pub mod engine;
 pub mod meta;
 pub mod models;
 pub mod network;
+// `scheduler` is built but not wired into setup yet — see lib.rs note.
+// `#[allow(dead_code)]` keeps clippy quiet; module is re-enabled when the
+// hourly cron is moved to a managed JobScheduler in app state.
+#[allow(dead_code)]
 pub mod scheduler;
 
 pub use client::CloudClient;

@@ -12,7 +12,16 @@ use crate::commands::sync::{
 };
 use crate::db::{build_pool, run_migrations, EntryRepository, PostgresEntryRepository};
 use crate::sync::auth::AuthManager;
-use crate::sync::{network, scheduler, CloudClient, SyncEngine};
+use crate::sync::{network, CloudClient, SyncEngine};
+// `scheduler` module exists (sync::scheduler) but is currently NOT wired into
+// setup. Calling block_on(scheduler::start(...)) inside Tauri's macOS
+// did_finish_launching panics with panic_cannot_unwind — tokio-cron-scheduler
+// spawns its own tokio runtime and Cocoa's main thread can't unwind through
+// the nested runtime. Hourly sync re-lands as a separate FAZ once the
+// scheduler is moved to a managed JobScheduler in app state, started via
+// tauri::async_runtime::spawn after the window is up. Manual "Şimdi
+// Senkronize Et" + the network monitor's offline→online auto-trigger
+// already cover every functional sync path for now.
 
 mod commands;
 mod db;
@@ -73,14 +82,13 @@ pub fn run() {
             let engine = Arc::new(SyncEngine::new(repo, cloud, auth, pool));
 
             // FAZ 2.2 background tasks. The scheduler runs the hourly cron;
-            // the network monitor probes /health every 30s and triggers a
-            // sync on offline → online transitions. Both are fire-and-forget;
-            // Tauri tearing down its async runtime stops them at app quit.
-            tauri::async_runtime::block_on(async {
-                if let Err(e) = scheduler::start(engine.clone()).await {
-                    tracing::warn!(target: "cornell_diary::sync", error = %e, "scheduler disabled");
-                }
-            });
+            // The network monitor probes /health every 30s and triggers a
+            // sync on offline → online transitions. Fire-and-forget; Tauri
+            // tearing down its async runtime stops it at app quit.
+            //
+            // The hourly cron scheduler is intentionally NOT started from
+            // here — see the file-top comment. Manual sync still works via
+            // the trigger_sync command.
             let network = network::start(cloud_url.clone(), engine.clone());
 
             app.manage(SyncState { engine, network });
