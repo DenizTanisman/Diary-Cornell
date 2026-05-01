@@ -3,7 +3,33 @@
 Roadmap-driven phases. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 "Unreleased" is what's on `main` but not yet tagged.
 
-## [Unreleased] — Faz 1 wrap-up (2026-05-01)
+## [1.0.0] — 2026-05-01
+
+First production release. Faz 0 → Faz 2.3 of the roadmap, all behind
+default-on or default-off feature flags so existing deployments don't
+shift behaviour at upgrade time.
+
+### Added (Faz 2)
+
+- **Auth hardening** (Faz 2.1) — pairs with Cloud `feature/auth-hardening`
+  - `CloudClient.{logout, forgot_password, reset_password}` and three
+    matching Tauri commands (`disconnect_cloud` now best-effort revokes
+    the refresh token's jti server-side before clearing local meta)
+  - CloudSyncPanel grows a mode toggle (`login → forgot → reset`) with
+    separate forms and a non-destructive notice band
+- **CI: Rust integration tests** (Faz 2.3)
+  - New `rust-test` GitHub Actions job runs cargo test against a
+    postgres service container (was: integration tests skipped on CI)
+  - Tauri build job uploads `.dmg / .app / .AppImage / .msi` bundles
+    as run artifacts
+
+### Changed
+- `tauri-build` now depends on `rust-test`; binaries don't ship if the
+  underlying tests are red
+
+---
+
+## [0.9.0] — Faz 1 wrap-up (2026-05-01)
 
 ### Added
 - **CRDT-aware merge** (Faz 1.1, [Cloud `6ca8829`](https://github.com/DenizTanisman/Cloud) +
