@@ -81,6 +81,25 @@ fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Faz 1.3: Sentry. Empty DSN → no init, no overhead, no network.
+    // The `_guard` keeps the client alive for the process lifetime;
+    // dropping it flushes pending events.
+    let _sentry_guard = std::env::var("SENTRY_DSN").ok().filter(|s| !s.is_empty()).map(|dsn| {
+        sentry::init((
+            dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                environment: std::env::var("APP_ENV")
+                    .ok()
+                    .map(Into::into)
+                    .or(Some("development".into())),
+                traces_sample_rate: 0.1,
+                send_default_pii: false,
+                ..Default::default()
+            },
+        ))
+    });
+
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
