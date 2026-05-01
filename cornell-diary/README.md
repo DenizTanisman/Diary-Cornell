@@ -1,8 +1,29 @@
 # Cornell Diary
 
-Cross-device personal diary built on **Tauri 2 + React 19 + Postgres**, with optional real-time
-multi-user editing via a char-level CRDT over WebSockets. Classic Cornell layout — dynamic cue
-sections on the left, a spacious main notes area on the right, summary + quote bar at the bottom.
+> **Status: Faz 1 in progress.** Core REST + WS + CRDT path is shipping; the
+> [Yol Haritası](../YOL_HARITASI.md) tracks the hardening work (CRDT-aware merge,
+> backups, observability, Android APK). Default behaviour is unchanged — every
+> new path lands behind a feature flag (see [.env.example](.env.example) +
+> "Feature flags" below).
+
+Cross-device personal diary built on **Tauri 2 + React 19 + Postgres** (desktop) /
+**SQLite** (Android, iOS), with optional real-time multi-user editing via a char-level
+CRDT over WebSockets. Classic Cornell layout — dynamic cue sections on the left, a
+spacious main notes area on the right, summary + quote bar at the bottom.
+
+## Feature flags (Faz 1+ rollout)
+
+| Flag                   | Default   | What it controls                              | Faz |
+| ---------------------- | --------- | --------------------------------------------- | --- |
+| `SYNC_MERGE_STRATEGY`  | `lmw`     | Server merge: last-write-wins vs CRDT replay  | 1.1 |
+| `PROMETHEUS_ENABLED`   | `false`   | Cloud `/metrics` endpoint                     | 1.3 |
+| `SENTRY_DSN`           | (empty)   | Error reporting (no-op if empty)              | 1.3 |
+| `DIARY_CLOUD_URL`      | (empty)   | Build-time LAN URL baked into Android APK     | 1.4 |
+| `ENABLE_CRDT_GC`       | `false`   | Tombstone GC in snapshot loop                 | 2.2 |
+| `BROADCAST_BACKEND`    | `memory`  | WS bus backend (memory \| redis)              | 3.1 |
+
+Defaults preserve the v1.0 behaviour. Opt-in flips one path at a time so a regression in
+the new code never blocks the old.
 
 ## Highlights
 
