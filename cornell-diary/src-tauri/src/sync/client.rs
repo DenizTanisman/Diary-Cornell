@@ -71,6 +71,61 @@ impl CloudClient {
         unwrap_json(resp).await
     }
 
+    /// Faz 2.1 — best-effort logout: tells Cloud to revoke this
+    /// refresh token's jti so a stolen token can't outlive the user's
+    /// click. Idempotent on the server (already-revoked = ok).
+    pub async fn logout(&self, refresh_token: &str) -> Result<(), DomainError> {
+        let resp = self
+            .http
+            .post(self.base.join("auth/logout").map_err(map_url)?)
+            .json(&RefreshRequest { refresh_token })
+            .send()
+            .await
+            .map_err(|e| DomainError::Storage(format!("cloud logout: {e}")))?;
+        let _: serde_json::Value = unwrap_json(resp).await?;
+        Ok(())
+    }
+
+    /// Faz 2.1 — kick off the password-reset flow. Cloud always
+    /// returns 200 (no info leak about which addresses exist), so
+    /// the client only surfaces network errors.
+    pub async fn forgot_password(&self, email: &str) -> Result<(), DomainError> {
+        #[derive(serde::Serialize)]
+        struct Body<'a> {
+            email: &'a str,
+        }
+        let resp = self
+            .http
+            .post(self.base.join("auth/forgot-password").map_err(map_url)?)
+            .json(&Body { email })
+            .send()
+            .await
+            .map_err(|e| DomainError::Storage(format!("cloud forgot-password: {e}")))?;
+        let _: serde_json::Value = unwrap_json(resp).await?;
+        Ok(())
+    }
+
+    /// Faz 2.1 — finish the password-reset flow with the token from
+    /// the email link. Cloud returns 400 on invalid/expired/reused
+    /// tokens, which surfaces here as a Validation error the UI can
+    /// show in the same form.
+    pub async fn reset_password(&self, token: &str, new_password: &str) -> Result<(), DomainError> {
+        #[derive(serde::Serialize)]
+        struct Body<'a> {
+            token: &'a str,
+            new_password: &'a str,
+        }
+        let resp = self
+            .http
+            .post(self.base.join("auth/reset-password").map_err(map_url)?)
+            .json(&Body { token, new_password })
+            .send()
+            .await
+            .map_err(|e| DomainError::Storage(format!("cloud reset-password: {e}")))?;
+        let _: serde_json::Value = unwrap_json(resp).await?;
+        Ok(())
+    }
+
     pub async fn list_journals(&self, token: &str) -> Result<Vec<CloudJournal>, DomainError> {
         let resp = self
             .http

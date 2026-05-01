@@ -115,7 +115,34 @@ impl SyncEngine {
     }
 
     pub async fn disconnect(&self) -> Result<(), DomainError> {
+        // Faz 2.1: tell Cloud to revoke this refresh token's jti so a
+        // stolen token can't outlive the user's "Bağlantıyı Kes"
+        // click. Best-effort — local clear runs even if Cloud is down.
+        let metadata = meta::read(&self.pool).await.ok();
+        if let Some(refresh) = metadata.and_then(|m| m.refresh_token) {
+            if !refresh.is_empty() {
+                if let Err(e) = self.client.logout(&refresh).await {
+                    tracing::warn!(target: "cornell_diary::sync", "remote logout failed (continuing): {e}");
+                }
+            }
+        }
         meta::clear(&self.pool).await
+    }
+
+    /// Faz 2.1 — kick off the password-reset flow. Cloud always
+    /// returns 200, so success here doesn't mean an email landed; it
+    /// just means the request reached the server.
+    pub async fn forgot_password(&self, email: &str) -> Result<(), DomainError> {
+        self.client.forgot_password(email).await
+    }
+
+    /// Faz 2.1 — finish a password reset with the token from the email.
+    pub async fn reset_password(
+        &self,
+        token: &str,
+        new_password: &str,
+    ) -> Result<(), DomainError> {
+        self.client.reset_password(token, new_password).await
     }
 
     pub async fn status(&self, online: bool) -> Result<SyncStatus, DomainError> {

@@ -47,3 +47,20 @@ pub async fn trigger_sync(state: State<'_, SyncState>) -> Result<SyncReport, Dom
 pub async fn get_sync_status(state: State<'_, SyncState>) -> Result<SyncStatus, DomainError> {
     state.engine.status(state.network.is_online()).await
 }
+
+#[tauri::command]
+pub async fn forgot_password_cloud(
+    state: State<'_, SyncState>,
+    email: String,
+) -> Result<(), DomainError> {
+    state.engine.forgot_password(&email).await
+}
+
+#[tauri::command]
+pub async fn reset_password_cloud(
+    state: State<'_, SyncState>,
+    token: String,
+    new_password: String,
+) -> Result<(), DomainError> {
+    state.engine.reset_password(&token, &new_password).await
+}
