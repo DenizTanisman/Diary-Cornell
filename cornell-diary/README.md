@@ -1,10 +1,10 @@
 # Cornell Diary
 
-> **Status: Faz 1 in progress.** Core REST + WS + CRDT path is shipping; the
-> [Yol Haritası](../YOL_HARITASI.md) tracks the hardening work (CRDT-aware merge,
-> backups, observability, Android APK). Default behaviour is unchanged — every
-> new path lands behind a feature flag (see [.env.example](.env.example) +
-> "Feature flags" below).
+> **Status: Faz 1 complete (2026-05-01).** CRDT-aware merge, Postgres backup
+> drill, /metrics + /health/ready + Sentry, Android APK + LAN sync — all
+> shipped behind opt-in flags. Faz 2 (auth hardening, CRDT GC, production
+> deploy) tracked in the [Yol Haritası](../YOL_HARITASI.md). See
+> [CHANGELOG](../CHANGELOG.md) for the full Faz 1 set.
 
 Cross-device personal diary built on **Tauri 2 + React 19 + Postgres** (desktop) /
 **SQLite** (Android, iOS), with optional real-time multi-user editing via a char-level
