@@ -268,7 +268,8 @@ impl SyncEngine {
             "SELECT date, diary, \
                 title_1, content_1, title_2, content_2, title_3, content_3, \
                 title_4, content_4, title_5, content_5, title_6, content_6, \
-                title_7, content_7, summary, quote, version, updated_at, cloud_entry_id \
+                title_7, content_7, summary, quote, version, baseline_version, \
+                updated_at, cloud_entry_id \
              FROM diary_entries WHERE is_dirty = TRUE ORDER BY date",
         )
         .fetch_all(&self.pool)
@@ -313,12 +314,19 @@ impl SyncEngine {
         cloud_id: uuid::Uuid,
         version: i64,
     ) -> Result<(), DomainError> {
+        // baseline_version is pinned to the server version we just
+        // observed — the next local edit's push will use this as the
+        // baseline for Cloud's CRDT-aware merge.
+        // last_synced_at is bound (instead of SQL `now()`) so the same
+        // statement compiles under SQLite (no `now()` function) too.
         sqlx::query(
-            "UPDATE diary_entries SET cloud_entry_id = $1, version = $2, is_dirty = FALSE, \
-                last_synced_at = now() WHERE date = $3",
+            "UPDATE diary_entries SET cloud_entry_id = $1, version = $2, \
+                baseline_version = $2, is_dirty = FALSE, \
+                last_synced_at = $3 WHERE date = $4",
         )
         .bind(cloud_id)
         .bind(version)
+        .bind(Utc::now())
         .bind(date)
         .execute(&self.pool)
         .await
@@ -352,6 +360,7 @@ struct DirtyEntryRow {
     summary: String,
     quote: String,
     version: i64,
+    baseline_version: i64,
     updated_at: String,
     cloud_entry_id: Option<uuid::Uuid>,
 }
@@ -364,6 +373,10 @@ struct DirtyEntry {
     summary: String,
     quote: String,
     version: i64,
+    /// Last server `version` we observed via mark_synced. Sent in
+    /// PushEntry.baseline_version so Cloud's CRDT-aware merge can
+    /// detect a concurrent writer that landed since this baseline.
+    baseline_version: i64,
     updated_at: DateTime<Utc>,
     cloud_id: Option<uuid::Uuid>,
 }
@@ -391,6 +404,7 @@ impl From<DirtyEntryRow> for DirtyEntry {
             summary: r.summary,
             quote: r.quote,
             version: r.version,
+            baseline_version: r.baseline_version,
             updated_at,
             cloud_id: r.cloud_entry_id,
         }
@@ -417,6 +431,14 @@ fn push_entry_from(d: &DirtyEntry) -> PushEntry {
         planlar: d.quote.clone(),
         version: d.version,
         last_modified_at: d.updated_at,
+        // Faz 1.1: tell Cloud which server version we last saw. None
+        // when the row has never been synced — Cloud's crdt path then
+        // falls through to lmw.
+        baseline_version: if d.baseline_version > 0 {
+            Some(d.baseline_version)
+        } else {
+            None
+        },
     }
 }
 
@@ -552,5 +574,48 @@ mod cue_codec_tests {
         assert_eq!(decoded[0].content, "just a thought");
         assert_eq!(decoded[1].title, "Another");
         assert_eq!(decoded[1].content, "with title");
+    }
+}
+
+#[cfg(test)]
+mod baseline_version_tests {
+    //! Faz 1.1: PushEntry must carry the last-seen server version so
+    //! Cloud's CRDT-aware merge can refuse stale-baseline overwrites.
+
+    use super::*;
+
+    fn dirty(version: i64, baseline: i64, cloud_id: Option<uuid::Uuid>) -> DirtyEntry {
+        DirtyEntry {
+            date: "2026-05-01".into(),
+            diary: "today's note".into(),
+            titles: [None, None, None, None, None, None, None],
+            contents: [None, None, None, None, None, None, None],
+            summary: String::new(),
+            quote: String::new(),
+            version,
+            baseline_version: baseline,
+            updated_at: Utc::now(),
+            cloud_id,
+        }
+    }
+
+    #[test]
+    fn push_entry_omits_baseline_for_never_synced_rows() {
+        // baseline=0 → first push, no concurrent writer to detect.
+        // Wire shape stays pre-1.1: `baseline_version` field absent.
+        let json = serde_json::to_value(push_entry_from(&dirty(1, 0, None))).unwrap();
+        assert!(json.get("baseline_version").is_none());
+    }
+
+    #[test]
+    fn push_entry_includes_baseline_after_first_sync() {
+        // baseline=3 (the version we last received from Cloud) → next
+        // push attaches it so Cloud can compare against current.
+        let id = Some(uuid::Uuid::new_v4());
+        let json = serde_json::to_value(push_entry_from(&dirty(4, 3, id))).unwrap();
+        assert_eq!(json["baseline_version"], 3);
+        // version is the post-local-edit value (= baseline + 1 here);
+        // server may bump further on its own.
+        assert_eq!(json["version"], 4);
     }
 }

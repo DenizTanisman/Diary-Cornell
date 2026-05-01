@@ -189,6 +189,12 @@ impl CloudEntry {
 /// `PushEntryDTO` — the write shape Cloud expects in PushRequest.entries.
 /// `id` is None for brand-new local rows; once Cloud assigns one it comes
 /// back in PushResponse.merged_entries and we persist it as `cloud_entry_id`.
+///
+/// `baseline_version` (Faz 1.1) is the server `version` we last saw on
+/// pull. Cloud's CRDT-aware merge path uses it to detect a concurrent
+/// writer who landed between our pull and this push and refuses to
+/// overwrite text fields when the baseline is stale. `None` keeps the
+/// pre-1.1 wire shape and the legacy LMW path for older servers.
 #[derive(Debug, Clone, Serialize)]
 pub struct PushEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -200,6 +206,8 @@ pub struct PushEntry {
     pub planlar: String,
     pub version: i64,
     pub last_modified_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub baseline_version: Option<i64>,
 }
 
 // ===========================================================================
