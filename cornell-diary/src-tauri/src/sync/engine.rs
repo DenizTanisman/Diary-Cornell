@@ -252,9 +252,10 @@ impl SyncEngine {
         sqlx::query(
             "INSERT INTO sync_log (sync_type, method, device_id, timestamp, entry_count, \
                 checksum, status, error_message) \
-             VALUES ('export', 'cloud', $1, now(), 1, $2, 'partial', $3)",
+             VALUES ('export', 'cloud', $1, $2, 1, $3, 'partial', $4)",
         )
         .bind(local.device_id.as_deref().unwrap_or(""))
+        .bind(Utc::now())
         .bind(format!("conflict:{}", local.date))
         .bind(payload)
         .execute(&self.pool)
@@ -279,8 +280,11 @@ impl SyncEngine {
     }
 
     async fn count_dirty(&self) -> Result<i64, DomainError> {
+        // COUNT(*) returns BIGINT on Postgres / INTEGER on SQLite — both
+        // decode into i64. The `::BIGINT` cast was Postgres-only and
+        // crashed SQLite with "unrecognized token: ':'".
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*)::BIGINT FROM diary_entries WHERE is_dirty = TRUE")
+            sqlx::query_as("SELECT COUNT(*) FROM diary_entries WHERE is_dirty = TRUE")
                 .fetch_one(&self.pool)
                 .await
                 .map_err(|e| DomainError::Storage(format!("count_dirty: {e}")))?;
