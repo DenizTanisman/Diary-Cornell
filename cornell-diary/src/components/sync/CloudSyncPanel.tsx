@@ -19,10 +19,15 @@ export function CloudSyncPanel() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [deviceLabel, setDeviceLabel] = useState(detectDeviceLabel());
-  const [busy, setBusy] = useState<'idle' | 'connect' | 'trigger' | 'disconnect'>('idle');
+  const [busy, setBusy] = useState<'idle' | 'connect' | 'trigger' | 'disconnect' | 'forgot' | 'reset'>('idle');
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<SyncReport | null>(null);
   const [connectReport, setConnectReport] = useState<ConnectReport | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'forgot' | 'reset'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const isConnected = status?.enabled ?? false;
 
@@ -60,6 +65,45 @@ export function CloudSyncPanel() {
     }
   }
 
+  async function onForgot() {
+    setBusy('forgot');
+    setActionError(null);
+    setAuthNotice(null);
+    try {
+      await invoke<void>('forgot_password_cloud', { email: forgotEmail });
+      // Cloud always returns 200 — present the same wording either way so we
+      // don't leak which addresses are registered.
+      setAuthNotice(
+        'E-posta gönderildi. Gelen kutunu kontrol et; bağlantı 60 dakika geçerli.',
+      );
+      setAuthMode('reset');
+    } catch (e) {
+      setActionError(extractMessage(e));
+    } finally {
+      setBusy('idle');
+    }
+  }
+
+  async function onReset() {
+    setBusy('reset');
+    setActionError(null);
+    setAuthNotice(null);
+    try {
+      await invoke<void>('reset_password_cloud', {
+        token: resetToken,
+        newPassword: resetNewPassword,
+      });
+      setAuthNotice('Şifre güncellendi. Yeni şifrenle giriş yapabilirsin.');
+      setResetToken('');
+      setResetNewPassword('');
+      setAuthMode('login');
+    } catch (e) {
+      setActionError(extractMessage(e));
+    } finally {
+      setBusy('idle');
+    }
+  }
+
   async function onDisconnect() {
     setBusy('disconnect');
     setActionError(null);
@@ -79,7 +123,7 @@ export function CloudSyncPanel() {
     <section className="sync-card" data-testid="cloud-sync-panel">
       <h2 className="sync-card__title">Cloud Senkronizasyonu</h2>
 
-      {!isConnected && (
+      {!isConnected && authMode === 'login' && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -134,6 +178,147 @@ export function CloudSyncPanel() {
           >
             {busy === 'connect' ? 'Bağlanılıyor…' : 'Cloud\'a Bağlan'}
           </button>
+          <div style={authLinkRowStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('forgot');
+                setActionError(null);
+                setAuthNotice(null);
+              }}
+              style={linkButtonStyle}
+              data-testid="cloud-forgot-link"
+            >
+              Şifremi unuttum
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('reset');
+                setActionError(null);
+                setAuthNotice(null);
+              }}
+              style={linkButtonStyle}
+              data-testid="cloud-have-token-link"
+            >
+              Sıfırlama kodum var
+            </button>
+          </div>
+        </form>
+      )}
+
+      {!isConnected && authMode === 'forgot' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void onForgot();
+          }}
+          style={formStyle}
+        >
+          <p className="sync-card__description">
+            Hesabınızdaki e-postayı girin. Doğrulanmış adreslere sıfırlama bağlantısı
+            gönderilir; başkasının adresine spam yapmamak için diğer durumlarda da aynı
+            mesajı görürsünüz.
+          </p>
+          <label style={labelStyle}>
+            E-posta
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              disabled={busy !== 'idle'}
+              data-testid="cloud-forgot-email"
+              style={inputStyle}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <button
+              type="submit"
+              className="sync-card__button"
+              disabled={busy !== 'idle' || !forgotEmail}
+              data-testid="cloud-forgot-submit"
+            >
+              {busy === 'forgot' ? 'Gönderiliyor…' : 'Sıfırlama bağlantısı yolla'}
+            </button>
+            <button
+              type="button"
+              className="sync-card__button"
+              onClick={() => {
+                setAuthMode('login');
+                setActionError(null);
+                setAuthNotice(null);
+              }}
+              disabled={busy !== 'idle'}
+              style={{ borderColor: '#888', color: '#444' }}
+            >
+              Vazgeç
+            </button>
+          </div>
+        </form>
+      )}
+
+      {!isConnected && authMode === 'reset' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void onReset();
+          }}
+          style={formStyle}
+        >
+          <p className="sync-card__description">
+            E-postadaki bağlantıdaki <code>token=</code> sonrasındaki kodu yapıştır ve
+            yeni şifreni belirle. Token tek kullanımlık ve 60 dakika geçerli.
+          </p>
+          <label style={labelStyle}>
+            Sıfırlama tokenı
+            <input
+              type="text"
+              required
+              value={resetToken}
+              onChange={(e) => setResetToken(e.target.value)}
+              disabled={busy !== 'idle'}
+              data-testid="cloud-reset-token"
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>
+            Yeni şifre
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              value={resetNewPassword}
+              onChange={(e) => setResetNewPassword(e.target.value)}
+              disabled={busy !== 'idle'}
+              data-testid="cloud-reset-password"
+              style={inputStyle}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <button
+              type="submit"
+              className="sync-card__button"
+              disabled={busy !== 'idle' || !resetToken || !resetNewPassword}
+              data-testid="cloud-reset-submit"
+            >
+              {busy === 'reset' ? 'Sıfırlanıyor…' : 'Şifreyi sıfırla'}
+            </button>
+            <button
+              type="button"
+              className="sync-card__button"
+              onClick={() => {
+                setAuthMode('login');
+                setActionError(null);
+                setAuthNotice(null);
+              }}
+              disabled={busy !== 'idle'}
+              style={{ borderColor: '#888', color: '#444' }}
+            >
+              Vazgeç
+            </button>
+          </div>
         </form>
       )}
 
@@ -177,6 +362,23 @@ export function CloudSyncPanel() {
             </button>
           </div>
         </div>
+      )}
+
+      {authNotice && (
+        <p
+          role="status"
+          data-testid="cloud-auth-notice"
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.5rem 0.75rem',
+            background: '#E5EFE0',
+            borderRadius: '4px',
+            color: '#22341A',
+            fontSize: '0.85rem',
+          }}
+        >
+          {authNotice}
+        </p>
       )}
 
       {(actionError ?? statusError) && (
@@ -259,6 +461,23 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '4px',
   fontSize: '0.9rem',
   background: '#FAF7F2',
+};
+
+const authLinkRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '1rem',
+  marginTop: '0.25rem',
+  fontSize: '0.8rem',
+};
+
+const linkButtonStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  color: '#3A5A99',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  fontSize: 'inherit',
 };
 
 const dlStyle: React.CSSProperties = {

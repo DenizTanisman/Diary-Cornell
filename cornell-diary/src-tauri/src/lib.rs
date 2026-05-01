@@ -11,7 +11,8 @@ use crate::commands::entries::{
     diary_set_setting, diary_upsert, AppState,
 };
 use crate::commands::sync::{
-    connect_cloud, disconnect_cloud, get_sync_status, trigger_sync, SyncState,
+    connect_cloud, disconnect_cloud, forgot_password_cloud, get_sync_status, reset_password_cloud,
+    trigger_sync, SyncState,
 };
 use crate::crdt::{PendingOpRepo, WsClient};
 use crate::db::{build_pool, run_migrations, EntryRepository};
@@ -210,6 +211,8 @@ pub fn run() {
             disconnect_cloud,
             trigger_sync,
             get_sync_status,
+            forgot_password_cloud,
+            reset_password_cloud,
             subscribe_crdt,
             apply_local_op,
             apply_local_text,
