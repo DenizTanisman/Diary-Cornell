@@ -262,6 +262,7 @@ mod tests {
                 planlar: String::new(),
                 version: 1,
                 last_modified_at: chrono::Utc::now(),
+                baseline_version: None,
             }],
             crdt_ops: Vec::new(),
         };
