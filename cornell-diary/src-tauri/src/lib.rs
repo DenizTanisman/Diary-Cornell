@@ -37,7 +37,13 @@ mod db;
 mod error;
 mod sync;
 
-const DEFAULT_CLOUD_URL: &str = "http://127.0.0.1:5000";
+// Compile-time fallback. Mobile builds inherit `DIARY_CLOUD_URL` from
+// build.rs (laptop LAN IP); desktop without an override falls through
+// to loopback. The runtime CLOUD_URL env var still wins everywhere.
+const DEFAULT_CLOUD_URL: &str = match option_env!("DIARY_CLOUD_URL") {
+    Some(url) => url,
+    None => "http://127.0.0.1:5001",
+};
 
 #[cfg(not(diary_sqlite))]
 const STORAGE_BACKEND: &str = "postgres";

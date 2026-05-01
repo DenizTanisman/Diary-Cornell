@@ -24,6 +24,17 @@ fn main() {
         println!("cargo:rustc-cfg=diary_sqlite");
     }
 
+    // DIARY_CLOUD_URL forwarded to the binary at compile time so an
+    // Android build can carry the laptop's LAN IP without a runtime env
+    // var (Android process env is inert by default). Desktop overrides
+    // happen via the runtime CLOUD_URL env which still wins in lib.rs.
+    if let Ok(url) = std::env::var("DIARY_CLOUD_URL") {
+        if !url.is_empty() {
+            println!("cargo:rustc-env=DIARY_CLOUD_URL={url}");
+        }
+    }
+    println!("cargo:rerun-if-env-changed=DIARY_CLOUD_URL");
+
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_SQLITE");
 
