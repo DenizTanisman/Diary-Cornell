@@ -4,6 +4,8 @@
 //! lives as a trait so future backends (in-memory test doubles, a remote
 //! sync target, etc.) can plug in without touching call sites.
 
+pub mod cloud_profile;
+pub mod llm_settings;
 pub mod models;
 pub mod pool;
 #[cfg(not(diary_sqlite))]
@@ -14,6 +16,8 @@ pub mod sqlite_impl;
 #[cfg(test)]
 pub mod test_helpers;
 
+// Re-exported only when needed from outside `db::`. The command modules
+// reach into the inner submodules directly to keep this file small.
 pub use models::{BulkResult, DiaryEntry};
 pub use pool::{build_pool, run_migrations, DbPool};
 #[cfg(not(diary_sqlite))]

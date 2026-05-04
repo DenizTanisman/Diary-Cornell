@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is permitted ONLY for the loopback + LAN ranges that the
+  Diary client uses to reach a local Cloud / Bridge service. Production
+  URLs (cloud.example.com, etc.) MUST be HTTPS — the base-config below
+  blocks cleartext for any other host.
+
+  Why so narrow: a blanket `usesCleartextTraffic=true` was permissive
+  enough that a typo in the Cloud Profile editor (`http://cloud.exa...`)
+  would silently work. With this file, plain-HTTP only resolves to the
+  ranges below; everything else fails fast with a clear error.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- Android emulator: maps to the host machine. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+
+        <!-- LAN ranges for the laptop running Cloud + Bridge. -->
+        <domain-config cleartextTrafficPermitted="true">
+            <!-- 10.0.0.0/8 -->
+            <domain includeSubdomains="true">10.0.0.0</domain>
+            <!-- 172.16.0.0/12 — first byte 172, second byte 16..31 -->
+            <domain includeSubdomains="true">172.16.0.0</domain>
+            <!-- 192.168.0.0/16 -->
+            <domain includeSubdomains="true">192.168.0.0</domain>
+        </domain-config>
+    </domain-config>
+
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

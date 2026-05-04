@@ -5,6 +5,7 @@
 //! tested against a `mockito` server without touching Postgres at all.
 
 pub mod auth;
+pub mod bridge_client;
 pub mod client;
 pub mod conflict;
 pub mod engine;

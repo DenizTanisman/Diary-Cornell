@@ -1,15 +1,31 @@
-import { useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDiary } from '../../hooks/useDiary';
 import { useDateNavigator } from '../../hooks/useDateNavigator';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useCrdtChannel } from '../../hooks/useCrdtChannel';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
+import { LlmInsightsPanel } from '../diary/LlmInsightsPanel';
 import { DateHeader } from './DateHeader';
 import { MainNotesArea } from './MainNotesArea';
 import { CueSection } from './CueSection';
 import { SummaryBar } from './SummaryBar';
 import { PresenceBadge } from './PresenceBadge';
 import { useT } from '../../locales';
+import type { LlmSettings } from '../../types/llmSettings';
+import type { DiaryEntry } from '../../types/diary';
+
+function combineEntryText(entry: DiaryEntry, liveDiary: string): string {
+  const parts: string[] = [];
+  for (const cue of entry.cueItems ?? []) {
+    if (cue.title?.trim()) parts.push(cue.title.trim());
+    if (cue.content?.trim()) parts.push(cue.content.trim());
+  }
+  if (liveDiary.trim()) parts.push(liveDiary.trim());
+  if (entry.summary?.trim()) parts.push(entry.summary.trim());
+  if (entry.quote?.trim()) parts.push(entry.quote.trim());
+  return parts.join('\n\n');
+}
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -32,6 +48,32 @@ export function CornellLayout() {
     seedText: diary.entry?.diary ?? '',
     enabled: liveEnabled,
   });
+
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () =>
+      invoke<LlmSettings>('llm_get_settings')
+        .then((s) => {
+          if (!cancelled) setLlmEnabled(s.enabled);
+        })
+        .catch(() => {
+          if (!cancelled) setLlmEnabled(false);
+        });
+    refresh();
+    const handler = () => refresh();
+    window.addEventListener('llm-settings-changed', handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('llm-settings-changed', handler);
+    };
+  }, []);
+
+  const liveDiary = crdt.crdtMode ? crdt.text : (diary.entry?.diary ?? '');
+  const combinedText = useMemo(
+    () => (diary.entry ? combineEntryText(diary.entry, liveDiary) : ''),
+    [diary.entry, liveDiary]
+  );
 
   const handleSave = useCallback(() => {
     void diary.saveNow();
@@ -97,6 +139,12 @@ export function CornellLayout() {
         onSummaryChange={diary.updateSummary}
         onQuoteChange={diary.updateQuote}
       />
+
+      {llmEnabled && (
+        <div style={{ marginTop: '1rem' }}>
+          <LlmInsightsPanel text={combinedText} />
+        </div>
+      )}
     </div>
   );
 }

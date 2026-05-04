@@ -1,4 +1,6 @@
 import clsx from 'clsx';
+import { CloudProfileSelector } from '../components/settings/CloudProfileSelector';
+import { LlmSettingsPanel } from '../components/settings/LlmSettings';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { useT } from '../locales';
@@ -52,6 +54,12 @@ export function SettingsPage() {
           {langOption('en', t('settings.languageEN'))}
         </div>
       </div>
+
+      <hr style={{ margin: '1.5rem 0', opacity: 0.2 }} />
+      <CloudProfileSelector />
+
+      <hr style={{ margin: '1.5rem 0', opacity: 0.2 }} />
+      <LlmSettingsPanel />
     </div>
   );
 }

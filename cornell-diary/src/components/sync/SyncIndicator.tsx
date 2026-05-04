@@ -8,6 +8,7 @@
  */
 import { Link } from 'react-router-dom';
 
+import { useActiveProfile } from '../../hooks/useActiveProfile';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { deriveIndicatorState, type SyncIndicatorState } from '../../types/cloudSync';
 
@@ -34,13 +35,16 @@ const ICON: Record<SyncIndicatorState, string> = {
 
 export function SyncIndicator() {
   const { status, error } = useSyncStatus();
+  const profile = useActiveProfile();
   const state = deriveIndicatorState(status);
   const dirty = status?.dirtyCount ?? 0;
+  const profileBadge =
+    profile?.id === 'production' ? '🌐' : profile?.id === 'local' ? '🏠' : '✨';
   const tooltip = error
     ? `Sync hatası: ${error}`
     : state === 'dirty'
-      ? `${dirty} bekleyen değişiklik`
-      : LABEL[state];
+      ? `${dirty} bekleyen değişiklik · Cloud: ${profile?.name ?? '—'}`
+      : `${LABEL[state]} · Cloud: ${profile?.name ?? '—'}`;
 
   return (
     <Link
@@ -66,6 +70,15 @@ export function SyncIndicator() {
       {state === 'dirty' && (
         <span aria-hidden="true" style={{ opacity: 0.7 }}>
           ({dirty})
+        </span>
+      )}
+      {profile && (
+        <span
+          aria-hidden="true"
+          title={`Cloud profile: ${profile.name}`}
+          style={{ opacity: 0.65, marginLeft: '0.15rem' }}
+        >
+          {profileBadge}
         </span>
       )}
     </Link>
