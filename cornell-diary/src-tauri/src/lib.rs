@@ -10,11 +10,21 @@ use crate::commands::entries::{
     diary_last_updated_at, diary_list_all, diary_list_dates, diary_list_range, diary_search,
     diary_set_setting, diary_upsert, AppState,
 };
+use crate::commands::llm::{
+    llm_get_settings, llm_health, llm_save_settings, llm_sentiment, llm_summarize, llm_tag,
+    LlmState,
+};
+use crate::commands::profile::{
+    delete_cloud_profile, get_active_cloud_profile, list_cloud_profiles, set_active_cloud_profile,
+    upsert_cloud_profile, ProfileState,
+};
 use crate::commands::sync::{
     connect_cloud, disconnect_cloud, forgot_password_cloud, get_sync_status, reset_password_cloud,
     trigger_sync, SyncState,
 };
 use crate::crdt::{PendingOpRepo, WsClient};
+use crate::db::cloud_profile;
+use crate::db::llm_settings;
 use crate::db::{build_pool, run_migrations, EntryRepository};
 #[cfg(not(diary_sqlite))]
 use crate::db::PostgresEntryRepository;
@@ -152,12 +162,29 @@ pub fn run() {
                 pg_pool: Some(pool.clone()),
             });
 
-            // Sync surface (FAZ 2). CloudClient is built up-front; the
-            // engine reaches it via the AuthManager + SyncEngine wrapper.
+            // MD 03 / Faz 3.1 — read the active cloud profile from the
+            // freshly migrated DB. Precedence: CLOUD_URL env (developer
+            // override) > active_profile.base_url > DEFAULT_CLOUD_URL.
+            let profile_repo = cloud_profile::create_repo(pool.clone());
+            let llm_repo = llm_settings::create_repo(pool.clone());
+            let active_profile_url = tauri::async_runtime::block_on(async {
+                profile_repo
+                    .get_active()
+                    .await
+                    .ok()
+                    .map(|p| p.base_url)
+                    .filter(|s| !s.is_empty())
+            });
             let cloud_url = std::env::var("CLOUD_URL")
                 .ok()
                 .filter(|s| !s.is_empty())
+                .or(active_profile_url)
                 .unwrap_or_else(|| DEFAULT_CLOUD_URL.to_string());
+            tracing::info!(
+                target: "cornell_diary",
+                cloud_url = %cloud_url,
+                "active cloud profile resolved"
+            );
             let cloud =
                 CloudClient::new(&cloud_url).map_err(|e| anyhow::anyhow!("cloud client: {e:?}"))?;
             let auth = AuthManager::new(pool.clone());
@@ -179,6 +206,8 @@ pub fn run() {
             let network = network::start(cloud_url.clone(), engine.clone());
 
             app.manage(SyncState { engine, network });
+            app.manage(ProfileState { repo: profile_repo });
+            app.manage(LlmState { repo: llm_repo });
 
             // FAZ 3.2: WS client for live multi-user CRDT exchange. The
             // engine is initialised lazily on the first subscribe_crdt
@@ -217,6 +246,17 @@ pub fn run() {
             apply_local_op,
             apply_local_text,
             unsubscribe_crdt,
+            list_cloud_profiles,
+            get_active_cloud_profile,
+            set_active_cloud_profile,
+            upsert_cloud_profile,
+            delete_cloud_profile,
+            llm_get_settings,
+            llm_save_settings,
+            llm_health,
+            llm_summarize,
+            llm_tag,
+            llm_sentiment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
