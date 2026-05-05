@@ -41,6 +41,45 @@
   min-width: 0;
 }
 
+/* Clickable variant — strips the button defaults, adds a subtle hover
+   affordance, and anchors the hidden <input type="date"> so its OS
+   picker opens against the date label rather than the page corner. */
+.cornell-header__date--button {
+  position: relative;
+  background: transparent;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 120ms ease;
+}
+.cornell-header__date--button:hover,
+.cornell-header__date--button:focus-visible {
+  background: var(--bg-tertiary);
+  outline: none;
+}
+.cornell-header__date-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.cornell-header__date-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
 .cornell-header__day {
   font-size: 0.85rem;
   color: var(--text-secondary);

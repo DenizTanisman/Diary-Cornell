@@ -67,6 +67,7 @@ export function CornellLayout() {
         onPrev={nav.goPrevDay}
         onNext={nav.goNextDay}
         onToday={nav.goToToday}
+        onPickDate={nav.goToDate}
         afterTitle={<PresenceBadge peers={crdt.peers} localPeerId={null} />}
       />
 
