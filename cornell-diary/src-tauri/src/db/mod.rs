@@ -5,7 +5,6 @@
 //! sync target, etc.) can plug in without touching call sites.
 
 pub mod cloud_profile;
-pub mod llm_settings;
 pub mod models;
 pub mod pool;
 #[cfg(not(diary_sqlite))]

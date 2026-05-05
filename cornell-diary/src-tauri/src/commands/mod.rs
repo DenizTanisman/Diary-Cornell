@@ -3,8 +3,8 @@
 //! frontend's existing repository abstraction can swap implementations
 //! without touching React components.
 
+pub mod cloud_service;
 pub mod crdt;
 pub mod entries;
-pub mod llm;
 pub mod profile;
 pub mod sync;
