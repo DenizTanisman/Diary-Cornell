@@ -28,7 +28,7 @@ use tokio::sync::{Mutex, MutexGuard};
 use crate::error::DomainError;
 
 const DEFAULT_CLOUD_DIR: &str = "Projects/Cloud";
-const CLOUD_HEALTH_URL: &str = "http://127.0.0.1:5001/health/live";
+const CLOUD_PORT: u16 = 5001;
 
 #[derive(Default, Clone)]
 pub struct CloudServiceState {
@@ -68,16 +68,20 @@ fn cloud_dir() -> PathBuf {
     }
 }
 
-async fn http_health_ok() -> bool {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build();
-    let Ok(client) = client else {
-        return false;
-    };
+/// Cheap port probe. uvicorn only binds `:5001` after FastAPI's startup
+/// events succeed, so a successful TCP connect == Cloud is ready to
+/// serve. This used to be an HTTP GET on `/health/live`, but reqwest's
+/// connect/build cost made the 1.5s panel-poll occasionally race past
+/// the 2s timeout on slow launch. TCP is single-syscall and never
+/// reaches that cliff.
+async fn cloud_listening() -> bool {
     matches!(
-        client.get(CLOUD_HEALTH_URL).send().await,
-        Ok(resp) if resp.status().is_success()
+        tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            tokio::net::TcpStream::connect(("127.0.0.1", CLOUD_PORT)),
+        )
+        .await,
+        Ok(Ok(_))
     )
 }
 
@@ -102,7 +106,7 @@ async fn start_impl(state: &CloudServiceState) -> Result<CloudServiceStatus, Dom
     let mut inner = state.inner.lock().await;
 
     // Already running and healthy → no-op.
-    if inner.child.is_some() && http_health_ok().await {
+    if inner.child.is_some() && cloud_listening().await {
         return Ok(snapshot(&inner, true).await);
     }
 
@@ -190,7 +194,7 @@ async fn start_impl(state: &CloudServiceState) -> Result<CloudServiceStatus, Dom
     drop(inner);
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let inner = state.inner.lock().await;
-    let healthy = http_health_ok().await;
+    let healthy = cloud_listening().await;
     Ok(snapshot(&inner, healthy).await)
 }
 
@@ -229,7 +233,7 @@ pub async fn cloud_service_status(
     state: State<'_, CloudServiceState>,
 ) -> Result<CloudServiceStatus, DomainError> {
     let inner = state.inner.lock().await;
-    let healthy = http_health_ok().await;
+    let healthy = cloud_listening().await;
     Ok(snapshot(&inner, healthy).await)
 }
 
