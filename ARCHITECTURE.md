@@ -884,7 +884,6 @@ Migration 0006 (`llm_settings`, `ai_*` columns on `diary_entries`) was added dur
 - **Sync behaviour walkthrough**: [cornell-diary/SYNC_BEHAVIOR.md](cornell-diary/SYNC_BEHAVIOR.md)
 - **Threat model (Diary)**: [cornell-diary/THREAT_MODEL.md](cornell-diary/THREAT_MODEL.md)
 - **Security checklist**: [cornell-diary/docs/SECURITY_CHECKLIST_DIARY.md](cornell-diary/docs/SECURITY_CHECKLIST_DIARY.md)
-- **Sprint progress tracker**: [docs/PROGRESS_TRACKER.md](docs/PROGRESS_TRACKER.md)
 - **Historical handoff docs / phase trackers**: [docs/archive/](docs/archive/) (frozen — kept for context but no longer authoritative)
 - **CHANGELOG**: [CHANGELOG.md](CHANGELOG.md)
 
