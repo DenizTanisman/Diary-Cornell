@@ -1,12 +1,12 @@
 .DS_Store
 
-# Internal workspace notes (not meant to ship with the repo)
-CORNELL_DIARY_CLAUDE_CODE_PROMPT.md
-00_MASTER_COORDINATOR.md
-01_CLOUD_PROD_READY.md
-02_LLM_BRIDGE.md
-03_DIARY_UPDATES.md
-new mds/
+# Internal workspace notes archived under docs/archive/ (not meant to ship)
+docs/archive/00_MASTER_COORDINATOR.md
+docs/archive/01_CLOUD_PROD_READY.md
+docs/archive/02_LLM_BRIDGE.md
+docs/archive/03_DIARY_UPDATES.md
+docs/archive/CORNELL_DIARY_CLAUDE_CODE_PROMPT.md
+docs/archive/parser.md
 new mds.zip
 
 # Build artifacts are committed to GitHub Releases, not into the repo

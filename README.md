@@ -2,7 +2,9 @@
 
 Offline-first, cross-platform personal diary built with **Tauri 2** and **React 19**. The classic Cornell note-taking method, adapted for daily journaling — dynamic cue sections on the left, a spacious main notes area on the right, and a summary + quote bar at the bottom.
 
-The app runs natively on **macOS** and **Android** today, shares a single TypeScript + Rust codebase, and stores every entry in a local SQLite database. No cloud, no telemetry.
+The app runs natively on **macOS** and **Android** (Android build active sprint), shares a single TypeScript + Rust codebase, and stores every entry locally. Optional self-hosted Cloud sync (REST every 2 min + real-time CRDT WebSocket for multi-device editing) is opt-in.
+
+> **Architecture & full feature catalogue:** see [ARCHITECTURE.md](ARCHITECTURE.md) — covers Diary, Cloud, and journal_ai_reporter end-to-end.
 
 ---
 
@@ -22,11 +24,12 @@ Ready-to-install builds are published on the [**Releases**](https://github.com/D
 ## Highlights
 
 - **Small & fast** — Tauri binaries are orders of magnitude smaller than an Electron equivalent.
-- **Local-first & private** — every entry stays in a SQLite database on-device. No cloud sync unless you export.
+- **Local-first & private** — every entry lives in a local Postgres (desktop) or SQLite (mobile) database. Cloud sync is opt-in.
 - **Cornell layout** — dynamic cue list, main notes, summary, and daily quote, all in one view.
-- **Manual sync** — export/import as checksummed JSON, or transfer between devices via chunked animated QR codes.
-- **Repository pattern** — the data layer is behind an `IDiaryRepository` interface. SQLite today, a remote Jarvis API later — the UI doesn't change.
-- **TypeScript strict mode**, 44+ Vitest tests, Turkish + English localization.
+- **Optional self-hosted Cloud sync** — REST pull/push every 2 min plus real-time CRDT WebSocket for multi-device editing. Diary can also spawn the Cloud server as a child process at launch — one click, no terminal.
+- **Manual sync fallbacks** — export/import as checksummed JSON, or transfer between devices via chunked animated QR codes.
+- **Repository pattern** — the data layer hides behind an `EntryRepository` trait (Rust) + `TauriRepository` (TS). Postgres for desktop, SQLite for mobile, swap at compile time.
+- **TypeScript strict mode**, **62 vitest + 57 cargo tests**, Turkish + English localization.
 
 ## Screenshots
 
@@ -136,9 +139,10 @@ On Android the export flow uses the system **Storage Access Framework** picker, 
 
 ## Roadmap
 
-- iOS build (share codebase with Android)
+- **Active sprint:** Android build polish (SQLite backend already wired; UI tap-target + manifest work remaining)
 - Signed Play Store and Apple-notarized releases
-- Jarvis remote repository (optional cloud sync while preserving local-first default)
+- iOS build (share codebase with Android)
+- Multi-account support (current `sync_metadata` table is a singleton — see [ARCHITECTURE.md §9.8](ARCHITECTURE.md#98-single-account-by-design))
 - Rich-text Cornell cells, tag/search across the archive
 
 ---
