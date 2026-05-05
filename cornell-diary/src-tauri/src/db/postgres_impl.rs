@@ -106,10 +106,29 @@ impl EntryRepository for PostgresEntryRepository {
     }
 
     async fn list_dates(&self) -> Result<Vec<String>, DomainError> {
-        let rows = sqlx::query("SELECT date FROM diary_entries ORDER BY date DESC")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(map_sqlx)?;
+        // Skip rows where every user-visible field is blank. Autosave
+        // upserts an entry the first time the user lands on a date, so
+        // dates with no actual content would otherwise leak into the
+        // archive. We check the diary/summary/quote columns plus all
+        // seven cue title/content pairs — anything else is a sync /
+        // metadata column that doesn't count as "the user wrote here".
+        let rows = sqlx::query(
+            "SELECT date FROM diary_entries \
+             WHERE COALESCE(diary, '') <> '' \
+                OR COALESCE(summary, '') <> '' \
+                OR COALESCE(quote, '') <> '' \
+                OR COALESCE(title_1, '') <> '' OR COALESCE(content_1, '') <> '' \
+                OR COALESCE(title_2, '') <> '' OR COALESCE(content_2, '') <> '' \
+                OR COALESCE(title_3, '') <> '' OR COALESCE(content_3, '') <> '' \
+                OR COALESCE(title_4, '') <> '' OR COALESCE(content_4, '') <> '' \
+                OR COALESCE(title_5, '') <> '' OR COALESCE(content_5, '') <> '' \
+                OR COALESCE(title_6, '') <> '' OR COALESCE(content_6, '') <> '' \
+                OR COALESCE(title_7, '') <> '' OR COALESCE(content_7, '') <> '' \
+             ORDER BY date DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
         rows.iter()
             .map(|r| r.try_get::<String, _>("date").map_err(map_sqlx))
             .collect()
