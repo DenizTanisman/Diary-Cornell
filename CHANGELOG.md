@@ -3,6 +3,96 @@
 Roadmap-driven phases. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 "Unreleased" is what's on `main` but not yet tagged.
 
+## [Unreleased]
+
+Post-1.0.0 work on `main`. Will be tagged as **1.1.0** at the end of the
+Android polish sprint.
+
+### Added
+
+- **Cloud auto-sync scheduler** (post-1.0 Tier 1) — `tokio-cron-scheduler`
+  fires `engine.run_full_cycle()` every 2 minutes; `AutoSyncHandle`
+  wraps an `AtomicBool` so the UI toggle flips it live without
+  scheduler tear-down. Spawned off the setup hook to dodge the macOS
+  app-delegate `panic_cannot_unwind` from a nested `block_on`.
+  Setting key: `auto_sync_enabled` (default ON).
+- **Cloud-from-Diary spawn** (Tier 2) — `start_cloud_service` /
+  `stop_cloud_service` / `cloud_service_status` Tauri commands manage
+  a uvicorn child via `tokio::process::Command` with `kill_on_drop`,
+  plus `bash scripts/start_postgres.sh` orchestration when :5434 is
+  idle. `CloudServicePanel` (Sync page) polls every 1.5 s and offers
+  start/stop buttons + PID display. Means non-technical users get
+  Cloud running without touching a terminal.
+- **Cloud auto-start on Diary launch** (Tier 3) — opt-in toggle
+  (`auto_start_cloud_on_launch`, default OFF). When on, the setup hook
+  spawns the same `start_cloud_service_internal` path right after
+  `app.manage(...)` so phone-from-Mac sync flows just work.
+- **Clickable date header** — the Cornell header date label is now a
+  button that triggers a hidden `<input type="date">` via
+  `showPicker()` (or a synthetic click on older WebViews). Lets users
+  jump to any date instead of clicking ← / → repeatedly.
+
+### Changed
+
+- **Cornell header layout** tightened on narrow viewports — date
+  centred between nav + meta, ellipsis on overflow, single row even
+  at 720 px (was wrapping to two rows on small Android screens).
+- **Cloud readiness probe** swapped from reqwest `/health/live` HTTP
+  call to a 500 ms `tokio::net::TcpStream::connect` on `:5001`. uvicorn
+  binds the port only after FastAPI startup events succeed, so a
+  successful TCP connect is equivalent to "Cloud is ready" — and is
+  faster + more reliable than reqwest's connect+TLS init on cold
+  launch (panel was occasionally showing "Cloud kapalı" while Cloud
+  was actually serving).
+
+### Fixed
+
+- **Archive hides blank entries** — `diary_list_dates` now filters out
+  rows where every user-visible field (`diary`, `cue_*`, `summary`,
+  `quote`) is empty. Autosave was leaving deleted-but-not-empty rows
+  in the archive after a user cleared everything on a day.
+
+### Removed
+
+- **On-device LLM (Gemma-4) panel + backend wiring** — every AI path
+  was already going through user-controlled APIs, so the local model
+  was pure cost (~7 GB disk, ~9 GB RAM, ~25 s warmup, no marginal
+  value over the network paths). Dropped:
+  - Frontend: `LlmInsightsPanel`, `LlmSettings`, `llmSettings.ts`
+    types + tests
+  - Backend: `commands/llm.rs`, `db/llm_settings.rs`,
+    `sync/bridge_client.rs`
+  - `journal_ai_reporter` sibling repo is left in tree (still
+    consumed by ImaginingJarvis) but Diary itself no longer talks to
+    it.
+  - DB migration 0006 (`llm_settings` singleton + `ai_*` columns on
+    `diary_entries`) is **not reverted** — dropping the columns is an
+    irreversible migration and a future LLM integration could revive
+    them. They're simply never written to.
+
+### Docs
+
+- **Single source of truth** — root-level docs collapsed into one
+  `ARCHITECTURE.md` (~1100 lines, code-driven). Covers Diary +
+  Cloud + journal_ai_reporter end-to-end: component breakdown,
+  IPC commands, DB schema, sync engine, CRDT layer, deployment, and
+  a "non-obvious decisions" section. Replaces the 14-file root sprawl
+  (handoffs, prompts, phase trackers).
+- Legacy MDs moved to `docs/archive/` (frozen — kept for context but
+  no longer authoritative).
+- README updated to point at `ARCHITECTURE.md`, refresh test counts
+  (62 vitest + 57 cargo), call out Cloud sync as implemented (was
+  marked roadmap), flag Android sprint as active.
+
+### Known follow-ups
+
+- **Android polish sprint** — UI tap-target audit, narrow viewport
+  tweaks, dark mode contrast, SafeArea + status bar styling. SQLite
+  backend is already wired (Faz 1.4); these are presentation-layer
+  refinements.
+
+---
+
 ## [1.0.0] — 2026-05-01
 
 First production release. Faz 0 → Faz 2.3 of the roadmap, all behind
