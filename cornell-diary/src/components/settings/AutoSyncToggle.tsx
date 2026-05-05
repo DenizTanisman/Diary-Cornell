@@ -38,18 +38,18 @@ export function AutoSyncToggle() {
   };
 
   return (
-    <div className="auto-sync-toggle" style={{ marginTop: '1rem' }}>
-      <h3 style={{ marginTop: 0, marginBottom: '0.4rem' }}>Otomatik Senkronizasyon</h3>
-      <p style={{ margin: '0 0 0.6rem 0', fontSize: '0.85rem', opacity: 0.7 }}>
+    <div className="auto-sync-toggle">
+      <h3 className="auto-sync-toggle__title">Otomatik Senkronizasyon</h3>
+      <p className="auto-sync-toggle__description">
         Açıkken Diary, Cloud'a 2 dakikada bir kendiliğinden bağlanır ve değişiklikleri
         senkronize eder. Yeniden başlatmadan kapanır/açılır.
       </p>
       {error && (
-        <div role="alert" style={{ color: '#BA2222', marginBottom: '0.4rem', fontSize: '0.85rem' }}>
+        <div role="alert" className="auto-sync-toggle__error">
           {error}
         </div>
       )}
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+      <label className="auto-sync-toggle__label">
         <input
           type="checkbox"
           checked={enabled === true}

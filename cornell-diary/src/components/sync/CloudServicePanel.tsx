@@ -91,52 +91,31 @@ export function CloudServicePanel() {
   const showStart = !isRunning && status?.state !== 'starting';
 
   return (
-    <div
-      className="cloud-service-panel"
-      style={{
-        marginTop: '1rem',
-        padding: '0.8rem 1rem',
-        border: '1px solid rgba(0,0,0,0.12)',
-        borderRadius: 8,
-      }}
-    >
-      <h3 style={{ margin: 0, marginBottom: '0.4rem' }}>Cloud Servisi</h3>
-      <p style={{ margin: '0 0 0.6rem 0', fontSize: '0.85rem', opacity: 0.7 }}>
+    <div className="cloud-service-panel">
+      <h3 className="cloud-service-panel__title">Cloud Servisi</h3>
+      <p className="cloud-service-panel__description">
         Senkronizasyon için yerel Cloud sunucusu (port 5001). Postgres ve uvicorn'ı tek butonla
         başlatır; Diary kapanınca otomatik durur.
       </p>
       {error && (
-        <div role="alert" style={{ color: '#BA2222', marginBottom: '0.4rem', fontSize: '0.85rem' }}>
+        <div role="alert" className="cloud-service-panel__error">
           {error}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-        <span style={{ flex: 1 }}>{stateLabel}</span>
+      <div className="cloud-service-panel__row">
+        <span className="cloud-service-panel__state">{stateLabel}</span>
         {showStart ? (
-          <button onClick={start} disabled={busy}>
+          <button className="cloud-service-panel__button" onClick={start} disabled={busy}>
             {busy ? '…' : "Cloud'u Başlat"}
           </button>
         ) : (
-          <button onClick={stop} disabled={busy}>
+          <button className="cloud-service-panel__button" onClick={stop} disabled={busy}>
             {busy ? '…' : "Cloud'u Durdur"}
           </button>
         )}
       </div>
-      {status?.pid && (
-        <div style={{ fontSize: '0.75rem', opacity: 0.55, marginTop: '0.4rem' }}>
-          PID: {status.pid}
-        </div>
-      )}
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginTop: '0.6rem',
-          fontSize: '0.85rem',
-          cursor: 'pointer',
-        }}
-      >
+      {status?.pid && <div className="cloud-service-panel__pid">PID: {status.pid}</div>}
+      <label className="cloud-service-panel__autostart">
         <input
           type="checkbox"
           checked={autoStart === true}

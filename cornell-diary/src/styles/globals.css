@@ -53,6 +53,17 @@ button {
   outline: none;
 }
 
+/* Focus-visible affordance for keyboard / TalkBack / Switch Control
+   navigation. Does NOT trigger on plain mouse/tap (uses :focus-visible),
+   so it doesn't fight the existing -webkit-tap-highlight-color reset.
+   Components that paint their own focus state (e.g. cornell-header__date
+   --button) override this with a specific selector. */
+:focus-visible {
+  outline: 2px solid var(--accent-secondary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 textarea {
   resize: none;
 }
