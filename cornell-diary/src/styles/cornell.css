@@ -10,7 +10,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
+  padding: 0.6rem 1.25rem;
+  gap: 0.75rem;
   border-bottom: 1px solid var(--border-secondary);
   background: var(--bg-secondary);
 }
@@ -24,9 +25,20 @@
 
 .cornell-header__date {
   font-family: 'Fraunces', Georgia, serif;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: var(--text-primary);
+  /* Take the middle space so the date stays centred between the
+     navigation buttons (left) and the meta block (right). */
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* `min-width: 0` lets the flex child shrink below its content width
+     so ellipsis can kick in on narrow viewports without pushing the
+     siblings off-screen. */
+  min-width: 0;
 }
 
 .cornell-header__day {
@@ -453,16 +465,18 @@
 
 @media (max-width: 900px) {
   .cornell-header {
-    flex-wrap: wrap;
+    /* Stay on a single row even when tight; the date string is short
+       enough (e.g. "5 May 2026, Salı") that ellipsis handles overflow. */
     gap: 0.5rem;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
   }
 
-  .cornell-header__date {
-    font-size: 1rem;
-    order: -1;
-    flex-basis: 100%;
-    text-align: center;
+  /* Keep the date at the wide-viewport size + weight; the centred
+     ellipsis already handles overflow without shrinking the type. */
+
+  .cornell-header__counter {
+    /* Word counter is the first thing to drop on narrow viewports. */
+    display: none;
   }
 
   .cornell-header__right {
