@@ -10,21 +10,20 @@ use crate::commands::entries::{
     diary_last_updated_at, diary_list_all, diary_list_dates, diary_list_range, diary_search,
     diary_set_setting, diary_upsert, AppState,
 };
-use crate::commands::llm::{
-    llm_get_settings, llm_health, llm_save_settings, llm_sentiment, llm_summarize, llm_tag,
-    LlmState,
+use crate::commands::cloud_service::{
+    cloud_service_status, start_cloud_service, stop_cloud_service, CloudServiceState,
 };
 use crate::commands::profile::{
     delete_cloud_profile, get_active_cloud_profile, list_cloud_profiles, set_active_cloud_profile,
     upsert_cloud_profile, ProfileState,
 };
 use crate::commands::sync::{
-    connect_cloud, disconnect_cloud, forgot_password_cloud, get_sync_status, reset_password_cloud,
-    trigger_sync, SyncState,
+    connect_cloud, disconnect_cloud, forgot_password_cloud, get_auto_start_cloud,
+    get_auto_sync_enabled, get_sync_status, reset_password_cloud, set_auto_start_cloud,
+    set_auto_sync_enabled, trigger_sync, AutoSyncState, SyncState,
 };
 use crate::crdt::{PendingOpRepo, WsClient};
 use crate::db::cloud_profile;
-use crate::db::llm_settings;
 use crate::db::{build_pool, run_migrations, EntryRepository};
 #[cfg(not(diary_sqlite))]
 use crate::db::PostgresEntryRepository;
@@ -166,7 +165,6 @@ pub fn run() {
             // freshly migrated DB. Precedence: CLOUD_URL env (developer
             // override) > active_profile.base_url > DEFAULT_CLOUD_URL.
             let profile_repo = cloud_profile::create_repo(pool.clone());
-            let llm_repo = llm_settings::create_repo(pool.clone());
             let active_profile_url = tauri::async_runtime::block_on(async {
                 profile_repo
                     .get_active()
@@ -195,19 +193,125 @@ pub fn run() {
                 pool.clone(),
             ));
 
-            // FAZ 2.2 background tasks. The scheduler runs the hourly cron;
-            // The network monitor probes /health every 30s and triggers a
-            // sync on offline → online transitions. Fire-and-forget; Tauri
-            // tearing down its async runtime stops it at app quit.
-            //
-            // The hourly cron scheduler is intentionally NOT started from
-            // here — see the file-top comment. Manual sync still works via
-            // the trigger_sync command.
+            // FAZ 2.2 + auto-sync. The network monitor probes /health every
+            // 30s and triggers a sync on offline → online transitions; the
+            // tokio-cron scheduler fires `engine.run_full_cycle()` every
+            // two minutes when its toggle is on. Both are fire-and-forget
+            // and Tauri's async runtime cleans them up at quit.
             let network = network::start(cloud_url.clone(), engine.clone());
+
+            // Read the saved auto-sync preference; default ON the first
+            // time the app launches.
+            let auto_sync_initial = tauri::async_runtime::block_on(async {
+                engine
+                    .pool()
+                    .acquire()
+                    .await
+                    .ok();
+                // Use the existing settings table (key/value) — see
+                // entries::diary_get_setting / diary_set_setting.
+                use sqlx::Row;
+                #[cfg(not(diary_sqlite))]
+                let row: Result<Option<sqlx::postgres::PgRow>, _> = sqlx::query(
+                    "SELECT value FROM app_settings WHERE key = 'auto_sync_enabled'",
+                )
+                .fetch_optional(&pool)
+                .await;
+                #[cfg(diary_sqlite)]
+                let row: Result<Option<sqlx::sqlite::SqliteRow>, _> = sqlx::query(
+                    "SELECT value FROM app_settings WHERE key = 'auto_sync_enabled'",
+                )
+                .fetch_optional(&pool)
+                .await;
+                row.ok()
+                    .flatten()
+                    .and_then(|r| r.try_get::<String, _>("value").ok())
+                    .map(|v| v != "false")
+                    .unwrap_or(true)
+            });
+
+            // Spawn the scheduler outside the setup hook so the macOS
+            // app delegate doesn't see a nested tokio runtime block_on
+            // (which is what made the 2.2 attempt panic). After the
+            // window is up, the runtime is fully ours.
+            let auto_sync_handle: std::sync::Arc<tokio::sync::OnceCell<sync::AutoSyncHandle>> =
+                std::sync::Arc::new(tokio::sync::OnceCell::new());
+            {
+                let cell = auto_sync_handle.clone();
+                let engine_for_sched = engine.clone();
+                tauri::async_runtime::spawn(async move {
+                    match sync::scheduler::start(engine_for_sched, auto_sync_initial).await {
+                        Ok(handle) => {
+                            tracing::info!(
+                                target: "cornell_diary::sync",
+                                active = auto_sync_initial,
+                                "auto-sync scheduler ready"
+                            );
+                            let _ = cell.set(handle);
+                        }
+                        Err(e) => tracing::warn!(
+                            target: "cornell_diary::sync",
+                            error = %e,
+                            "auto-sync scheduler failed to start"
+                        ),
+                    }
+                });
+            }
 
             app.manage(SyncState { engine, network });
             app.manage(ProfileState { repo: profile_repo });
-            app.manage(LlmState { repo: llm_repo });
+            app.manage(AutoSyncState { handle: auto_sync_handle });
+
+            let cloud_service_state = CloudServiceState::default();
+
+            // Tier 3 follow-up: read the "auto-start cloud on Diary
+            // launch" toggle and, if on, spawn the Cloud uvicorn from a
+            // managed child. Default OFF — only opt-in users pay the
+            // ~250 MB RAM cost.
+            let auto_start_cloud = tauri::async_runtime::block_on(async {
+                use sqlx::Row;
+                #[cfg(not(diary_sqlite))]
+                let row: Result<Option<sqlx::postgres::PgRow>, _> = sqlx::query(
+                    "SELECT value FROM app_settings WHERE key = 'auto_start_cloud_on_launch'",
+                )
+                .fetch_optional(&pool)
+                .await;
+                #[cfg(diary_sqlite)]
+                let row: Result<Option<sqlx::sqlite::SqliteRow>, _> = sqlx::query(
+                    "SELECT value FROM app_settings WHERE key = 'auto_start_cloud_on_launch'",
+                )
+                .fetch_optional(&pool)
+                .await;
+                row.ok()
+                    .flatten()
+                    .and_then(|r| r.try_get::<String, _>("value").ok())
+                    .map(|v| v == "true")
+                    .unwrap_or(false)
+            });
+
+            if auto_start_cloud {
+                let state_for_spawn = cloud_service_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    match commands::cloud_service::start_cloud_service_internal(
+                        &state_for_spawn,
+                    )
+                    .await
+                    {
+                        Ok(s) => tracing::info!(
+                            target: "cornell_diary::cloud_service",
+                            state = %s.state,
+                            "auto-started Cloud on Diary launch"
+                        ),
+                        Err(e) => tracing::warn!(
+                            target: "cornell_diary::cloud_service",
+                            error = %e,
+                            "auto-start Cloud failed"
+                        ),
+                    }
+                });
+            }
+
+            app.manage(cloud_service_state);
 
             // FAZ 3.2: WS client for live multi-user CRDT exchange. The
             // engine is initialised lazily on the first subscribe_crdt
@@ -251,12 +355,13 @@ pub fn run() {
             set_active_cloud_profile,
             upsert_cloud_profile,
             delete_cloud_profile,
-            llm_get_settings,
-            llm_save_settings,
-            llm_health,
-            llm_summarize,
-            llm_tag,
-            llm_sentiment,
+            get_auto_sync_enabled,
+            set_auto_sync_enabled,
+            get_auto_start_cloud,
+            set_auto_start_cloud,
+            start_cloud_service,
+            stop_cloud_service,
+            cloud_service_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
