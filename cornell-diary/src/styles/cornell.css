@@ -446,11 +446,23 @@
   margin: 0 auto;
 }
 
+/* Option-2 typography boost: pages stay in the 720 px reading column,
+   but headings + rows + buttons size up so the wide-viewport view
+   doesn't feel undersized against the surrounding empty space. */
+.page-container > h1 {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 2.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 0;
+  padding: 1.1rem 0;
   border-bottom: 1px solid var(--border-secondary);
 }
 
@@ -459,7 +471,7 @@
 }
 
 .settings-row__label {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   color: var(--text-primary);
 }
 
@@ -469,10 +481,11 @@
 }
 
 .settings-row__control button {
-  padding: 0.35rem 0.85rem;
+  min-height: 44px;
+  padding: 0.55rem 1.05rem;
   border: 1px solid var(--border-secondary);
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--text-primary);
 }
 
@@ -501,10 +514,10 @@
   flex-direction: column;
   gap: 0.75rem;
   margin-top: 1rem;
-  padding: 1.1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .cloud-sync-panel__form {
@@ -618,10 +631,10 @@
 }
 
 .sync-card__item {
-  padding: 1rem;
+  padding: 1.25rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -630,20 +643,22 @@
 .sync-card__title {
   font-weight: 600;
   font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.05rem;
 }
 
 .sync-card__description {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .sync-card__button {
+  min-height: 44px;
   background: var(--accent-primary);
   color: var(--bg-primary);
-  padding: 0.5rem 0.75rem;
+  padding: 0.6rem 1rem;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
   align-self: flex-start;
 }
@@ -656,23 +671,23 @@
 .cloud-service-panel,
 .auto-sync-toggle {
   margin-top: 1rem;
-  padding: 0.85rem 1rem;
+  padding: 1.1rem 1.25rem;
   border: 1px solid var(--border-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg-secondary);
 }
 
 .cloud-service-panel__title,
 .auto-sync-toggle__title {
-  margin: 0 0 0.4rem 0;
+  margin: 0 0 0.5rem 0;
   font-family: 'Fraunces', Georgia, serif;
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .cloud-service-panel__description,
 .auto-sync-toggle__description {
-  margin: 0 0 0.6rem 0;
-  font-size: 0.85rem;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
@@ -807,12 +822,12 @@
     padding: 0.5rem 0;
   }
 
+  /* settings-row + sync-card buttons have a 44 px min-height as a
+     default now (option-2 typography boost), so they're omitted here. */
   .cue-add__input,
   .cue-add__button,
   .cornell-nav-button,
   .cornell-header__date--button,
-  .settings-row__control button,
-  .sync-card__button,
   .modal__close,
   .modal__primary {
     min-height: 44px;
