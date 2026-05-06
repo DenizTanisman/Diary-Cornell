@@ -810,15 +810,9 @@
     min-height: 44px;
   }
 
-  .sync-card {
-    grid-template-columns: 1fr;
-  }
-
-  .sync-card__button {
-    /* Stretch full-width when stacked vertically; one-tap target. */
-    width: 100%;
-    padding: 0.65rem 0.75rem;
-  }
+  /* .sync-card stays a 2×2 grid at every width — user preference: the
+     four-quadrant view reads more deliberately than a tall stack of
+     full-width buttons. Buttons keep their natural width. */
 
   .archive-list__item {
     min-height: 56px;
