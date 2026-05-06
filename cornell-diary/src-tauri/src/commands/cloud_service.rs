@@ -25,6 +25,7 @@ use tauri::State;
 use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, MutexGuard};
 
+use crate::commands::mdns::{self, MdnsState};
 use crate::error::DomainError;
 
 const DEFAULT_CLOUD_DIR: &str = "Projects/Cloud";
@@ -91,18 +92,23 @@ async fn cloud_listening() -> bool {
 /// state is `app.manage(...)`-d.
 pub async fn start_cloud_service_internal(
     state: &CloudServiceState,
+    mdns_state: &MdnsState,
 ) -> Result<CloudServiceStatus, DomainError> {
-    start_impl(state).await
+    start_impl(state, mdns_state).await
 }
 
 #[tauri::command]
 pub async fn start_cloud_service(
     state: State<'_, CloudServiceState>,
+    mdns_state: State<'_, MdnsState>,
 ) -> Result<CloudServiceStatus, DomainError> {
-    start_impl(&state).await
+    start_impl(&state, &mdns_state).await
 }
 
-async fn start_impl(state: &CloudServiceState) -> Result<CloudServiceStatus, DomainError> {
+async fn start_impl(
+    state: &CloudServiceState,
+    mdns_state: &MdnsState,
+) -> Result<CloudServiceStatus, DomainError> {
     let mut inner = state.inner.lock().await;
 
     // Already running and healthy → no-op.
@@ -195,13 +201,33 @@ async fn start_impl(state: &CloudServiceState) -> Result<CloudServiceStatus, Dom
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let inner = state.inner.lock().await;
     let healthy = cloud_listening().await;
+
+    // Once the listener is up, advertise on mDNS so phones on the LAN
+    // can find us. Failure to advertise should NEVER block the Cloud
+    // start path — log and move on.
+    if healthy {
+        if let Err(e) = mdns::start_advertising(mdns_state).await {
+            tracing::warn!(
+                target: "cornell_diary::cloud_service",
+                error = %e,
+                "mdns advertise failed (non-fatal)"
+            );
+        }
+    }
+
     Ok(snapshot(&inner, healthy).await)
 }
 
 #[tauri::command]
 pub async fn stop_cloud_service(
     state: State<'_, CloudServiceState>,
+    mdns_state: State<'_, MdnsState>,
 ) -> Result<CloudServiceStatus, DomainError> {
+    // Pull the mdns advertise down first; clients shouldn't see us in
+    // the discovery list while the uvicorn process is in the middle of
+    // tearing down.
+    let _ = mdns::stop_advertising(&mdns_state).await;
+
     let mut inner = state.inner.lock().await;
     if let Some(mut child) = inner.child.take() {
         // `kill_on_drop` would handle this on its own, but explicit
