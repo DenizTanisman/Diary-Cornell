@@ -9,13 +9,17 @@ interface CloudServiceStatus {
 }
 
 const POLL_INTERVAL_MS = 1500;
+const CLOUD_PORT = 5001;
 
 export function CloudServicePanel() {
   const [status, setStatus] = useState<CloudServiceStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoStart, setAutoStart] = useState<boolean | null>(null);
+  const [lanAddresses, setLanAddresses] = useState<string[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
 
   const refresh = async () => {
     try {
@@ -30,13 +34,29 @@ export function CloudServicePanel() {
   useEffect(() => {
     void refresh();
     invoke<boolean>('get_auto_start_cloud').then(setAutoStart).catch(() => setAutoStart(false));
+    invoke<string[]>('get_lan_addresses')
+      .then(setLanAddresses)
+      .catch(() => setLanAddresses([]));
     pollRef.current = window.setInterval(() => {
       void refresh();
     }, POLL_INTERVAL_MS);
     return () => {
       if (pollRef.current !== null) window.clearInterval(pollRef.current);
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
     };
   }, []);
+
+  const copyAddress = async (full: string) => {
+    try {
+      await navigator.clipboard.writeText(full);
+      setCopied(full);
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // Clipboard rejected — fall back silently; the URL is visible
+      // in the row, the user can still long-press.
+    }
+  };
 
   const toggleAutoStart = async () => {
     if (autoStart === null) return;
@@ -115,6 +135,31 @@ export function CloudServicePanel() {
         )}
       </div>
       {status?.pid && <div className="cloud-service-panel__pid">PID: {status.pid}</div>}
+      {isRunning && lanAddresses.length > 0 && (
+        <div className="cloud-service-panel__lan">
+          <div className="cloud-service-panel__lan-label">
+            📱 Telefondan / diğer cihazlardan erişim için:
+          </div>
+          <ul className="cloud-service-panel__lan-list">
+            {lanAddresses.map((ip) => {
+              const url = `http://${ip}:${CLOUD_PORT}`;
+              return (
+                <li key={ip} className="cloud-service-panel__lan-item">
+                  <code>{url}</code>
+                  <button
+                    type="button"
+                    className="cloud-service-panel__lan-copy"
+                    onClick={() => void copyAddress(url)}
+                    aria-label={`${url} kopyala`}
+                  >
+                    {copied === url ? '✓ Kopyalandı' : 'Kopyala'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       <label className="cloud-service-panel__autostart">
         <input
           type="checkbox"
