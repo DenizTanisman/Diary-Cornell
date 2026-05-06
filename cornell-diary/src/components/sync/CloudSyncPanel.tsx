@@ -120,22 +120,22 @@ export function CloudSyncPanel() {
   }
 
   return (
-    <section className="sync-card" data-testid="cloud-sync-panel">
+    <section className="cloud-sync-panel" data-testid="cloud-sync-panel">
       <h2 className="sync-card__title">Cloud Senkronizasyonu</h2>
 
       {!isConnected && authMode === 'login' && (
         <form
+          className="cloud-sync-panel__form"
           onSubmit={(e) => {
             e.preventDefault();
             void onConnect();
           }}
-          style={formStyle}
         >
           <p className="sync-card__description">
             Giriş bilgilerinizle Cloud'a bağlanın. Şifre yalnızca giriş çağrısında
             kullanılır, hiçbir yere yazılmaz.
           </p>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             Kullanıcı adı
             <input
               type="text"
@@ -145,10 +145,10 @@ export function CloudSyncPanel() {
               onChange={(e) => setUsername(e.target.value)}
               disabled={busy !== 'idle'}
               data-testid="cloud-username"
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             Şifre
             <input
               type="password"
@@ -157,17 +157,17 @@ export function CloudSyncPanel() {
               onChange={(e) => setPassword(e.target.value)}
               disabled={busy !== 'idle'}
               data-testid="cloud-password"
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             Cihaz etiketi
             <input
               type="text"
               value={deviceLabel}
               onChange={(e) => setDeviceLabel(e.target.value)}
               disabled={busy !== 'idle'}
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
           <button
@@ -178,27 +178,27 @@ export function CloudSyncPanel() {
           >
             {busy === 'connect' ? 'Bağlanılıyor…' : 'Cloud\'a Bağlan'}
           </button>
-          <div style={authLinkRowStyle}>
+          <div className="cloud-sync-panel__link-row">
             <button
               type="button"
+              className="cloud-sync-panel__link"
               onClick={() => {
                 setAuthMode('forgot');
                 setActionError(null);
                 setAuthNotice(null);
               }}
-              style={linkButtonStyle}
               data-testid="cloud-forgot-link"
             >
               Şifremi unuttum
             </button>
             <button
               type="button"
+              className="cloud-sync-panel__link"
               onClick={() => {
                 setAuthMode('reset');
                 setActionError(null);
                 setAuthNotice(null);
               }}
-              style={linkButtonStyle}
               data-testid="cloud-have-token-link"
             >
               Sıfırlama kodum var
@@ -209,18 +209,18 @@ export function CloudSyncPanel() {
 
       {!isConnected && authMode === 'forgot' && (
         <form
+          className="cloud-sync-panel__form"
           onSubmit={(e) => {
             e.preventDefault();
             void onForgot();
           }}
-          style={formStyle}
         >
           <p className="sync-card__description">
             Hesabınızdaki e-postayı girin. Doğrulanmış adreslere sıfırlama bağlantısı
             gönderilir; başkasının adresine spam yapmamak için diğer durumlarda da aynı
             mesajı görürsünüz.
           </p>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             E-posta
             <input
               type="email"
@@ -230,10 +230,10 @@ export function CloudSyncPanel() {
               onChange={(e) => setForgotEmail(e.target.value)}
               disabled={busy !== 'idle'}
               data-testid="cloud-forgot-email"
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <div className="cloud-sync-panel__actions">
             <button
               type="submit"
               className="sync-card__button"
@@ -244,14 +244,13 @@ export function CloudSyncPanel() {
             </button>
             <button
               type="button"
-              className="sync-card__button"
+              className="sync-card__button cloud-sync-panel__button--secondary"
               onClick={() => {
                 setAuthMode('login');
                 setActionError(null);
                 setAuthNotice(null);
               }}
               disabled={busy !== 'idle'}
-              style={{ borderColor: '#888', color: '#444' }}
             >
               Vazgeç
             </button>
@@ -261,17 +260,17 @@ export function CloudSyncPanel() {
 
       {!isConnected && authMode === 'reset' && (
         <form
+          className="cloud-sync-panel__form"
           onSubmit={(e) => {
             e.preventDefault();
             void onReset();
           }}
-          style={formStyle}
         >
           <p className="sync-card__description">
             E-postadaki bağlantıdaki <code>token=</code> sonrasındaki kodu yapıştır ve
             yeni şifreni belirle. Token tek kullanımlık ve 60 dakika geçerli.
           </p>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             Sıfırlama tokenı
             <input
               type="text"
@@ -280,10 +279,10 @@ export function CloudSyncPanel() {
               onChange={(e) => setResetToken(e.target.value)}
               disabled={busy !== 'idle'}
               data-testid="cloud-reset-token"
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
-          <label style={labelStyle}>
+          <label className="cloud-sync-panel__field">
             Yeni şifre
             <input
               type="password"
@@ -293,10 +292,10 @@ export function CloudSyncPanel() {
               onChange={(e) => setResetNewPassword(e.target.value)}
               disabled={busy !== 'idle'}
               data-testid="cloud-reset-password"
-              style={inputStyle}
+              className="cloud-sync-panel__input"
             />
           </label>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <div className="cloud-sync-panel__actions">
             <button
               type="submit"
               className="sync-card__button"
@@ -307,14 +306,13 @@ export function CloudSyncPanel() {
             </button>
             <button
               type="button"
-              className="sync-card__button"
+              className="sync-card__button cloud-sync-panel__button--secondary"
               onClick={() => {
                 setAuthMode('login');
                 setActionError(null);
                 setAuthNotice(null);
               }}
               disabled={busy !== 'idle'}
-              style={{ borderColor: '#888', color: '#444' }}
             >
               Vazgeç
             </button>
@@ -323,14 +321,14 @@ export function CloudSyncPanel() {
       )}
 
       {isConnected && (
-        <div style={formStyle}>
+        <div className="cloud-sync-panel__form">
           {connectReport && (
             <p className="sync-card__description" data-testid="cloud-connected">
               {connectReport.journalName} jurnaline bağlandın · peer{' '}
               <code>{connectReport.peerId}</code>
             </p>
           )}
-          <dl style={dlStyle}>
+          <dl className="cloud-sync-panel__status-grid">
             <dt>Çevrimiçi</dt>
             <dd>{status?.online ? 'Evet' : 'Hayır'}</dd>
             <dt>Son pull</dt>
@@ -340,7 +338,7 @@ export function CloudSyncPanel() {
             <dt>Bekleyen değişiklik</dt>
             <dd>{status?.dirtyCount ?? 0}</dd>
           </dl>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <div className="cloud-sync-panel__actions">
             <button
               type="button"
               className="sync-card__button"
@@ -352,11 +350,10 @@ export function CloudSyncPanel() {
             </button>
             <button
               type="button"
-              className="sync-card__button"
+              className="sync-card__button cloud-sync-panel__button--danger"
               onClick={() => void onDisconnect()}
               disabled={busy !== 'idle'}
               data-testid="cloud-disconnect"
-              style={{ borderColor: '#BA2222', color: '#BA2222' }}
             >
               {busy === 'disconnect' ? 'Bağlantı kesiliyor…' : 'Bağlantıyı Kes'}
             </button>
@@ -367,15 +364,8 @@ export function CloudSyncPanel() {
       {authNotice && (
         <p
           role="status"
+          className="cloud-sync-panel__notice"
           data-testid="cloud-auth-notice"
-          style={{
-            marginTop: '0.75rem',
-            padding: '0.5rem 0.75rem',
-            background: '#E5EFE0',
-            borderRadius: '4px',
-            color: '#22341A',
-            fontSize: '0.85rem',
-          }}
         >
           {authNotice}
         </p>
@@ -384,15 +374,8 @@ export function CloudSyncPanel() {
       {(actionError ?? statusError) && (
         <p
           role="alert"
+          className="cloud-sync-panel__error"
           data-testid="cloud-error"
-          style={{
-            marginTop: '0.75rem',
-            padding: '0.5rem 0.75rem',
-            background: '#F4D6CB',
-            borderRadius: '4px',
-            color: '#561010',
-            fontSize: '0.85rem',
-          }}
         >
           {actionError ?? statusError}
         </p>
@@ -403,7 +386,6 @@ export function CloudSyncPanel() {
           className="empty-state"
           role="status"
           data-testid="cloud-last-report"
-          style={{ marginTop: '0.75rem' }}
         >
           Son senkronizasyon: {lastReport.pulled} çekildi · {lastReport.pushed} gönderildi ·{' '}
           {lastReport.conflictsCloudWon + lastReport.conflictsLocalWon} çakışma · {lastReport.durationMs} ms
@@ -439,52 +421,3 @@ function extractMessage(e: unknown): string {
   }
   return 'unknown error';
 }
-
-const formStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-  padding: '0.5rem 0',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.25rem',
-  fontSize: '0.85rem',
-  color: '#1A1A1A',
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '0.5rem 0.75rem',
-  border: '1px solid #D0CCC5',
-  borderRadius: '4px',
-  fontSize: '0.9rem',
-  background: '#FAF7F2',
-};
-
-const authLinkRowStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '1rem',
-  marginTop: '0.25rem',
-  fontSize: '0.8rem',
-};
-
-const linkButtonStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  color: '#3A5A99',
-  textDecoration: 'underline',
-  cursor: 'pointer',
-  fontSize: 'inherit',
-};
-
-const dlStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'auto 1fr',
-  columnGap: '0.75rem',
-  rowGap: '0.25rem',
-  fontSize: '0.85rem',
-  margin: '0.5rem 0',
-};

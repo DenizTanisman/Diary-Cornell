@@ -482,6 +482,134 @@
   padding: 1rem 0;
 }
 
+/* ─── Cloud sync panel (login + status + actions) ─────────────────
+   Lives on the Sync page above the .sync-card grid. Was previously
+   piggy-backing on .sync-card itself, which forced its children
+   into a 2-col grid on wide viewports — title shoved left, status
+   list dangling right, result card detached underneath. Owns its
+   layout now so it always reads as a single, vertical card. */
+
+.cloud-sync-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+}
+
+.cloud-sync-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cloud-sync-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.cloud-sync-panel__input {
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.cloud-sync-panel__input:focus-visible {
+  border-color: var(--accent-ink);
+  outline: none;
+}
+
+.cloud-sync-panel__link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.cloud-sync-panel__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.cloud-sync-panel__status-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  margin: 0.25rem 0 0.25rem 0;
+  font-size: 0.95rem;
+}
+
+.cloud-sync-panel__status-grid dt {
+  color: var(--text-secondary);
+}
+
+.cloud-sync-panel__status-grid dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.cloud-sync-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.cloud-sync-panel__actions .sync-card__button {
+  /* Each action takes equal share but won't shrink below 44 px. */
+  flex: 1 1 14rem;
+  min-height: 44px;
+}
+
+.cloud-sync-panel__button--secondary {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+}
+
+.cloud-sync-panel__button--danger {
+  background: var(--bg-primary);
+  color: var(--error);
+  border: 1px solid var(--border-secondary);
+}
+
+.cloud-sync-panel__notice {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-left: 3px solid var(--success);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.cloud-sync-panel__error {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--error);
+  border-left: 3px solid var(--error);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
 .sync-card__item {
   padding: 1rem;
   background: var(--bg-secondary);
