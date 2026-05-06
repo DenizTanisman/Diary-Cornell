@@ -237,6 +237,50 @@ pub async fn cloud_service_status(
     Ok(snapshot(&inner, healthy).await)
 }
 
+/// Sprint D-1 — list every IPv4 address the host owns that another
+/// device on the LAN could reach Cloud through. Skips loopback,
+/// link-local (169.254.x.x — DHCP fallback that nobody can route to),
+/// and Docker's default bridge (172.17.x.x — only the host sees it).
+///
+/// The phone-from-Mac flow needs this: `localhost:5001` works on the
+/// Mac itself, but a phone has to dial the Mac's actual LAN address
+/// (e.g. `192.168.1.5:5001`). We surface the candidates so the user
+/// can copy one into their phone's Cloud Profile without digging
+/// through System Settings → Network.
+#[tauri::command]
+pub fn get_lan_addresses() -> Result<Vec<String>, DomainError> {
+    let ifaces = local_ip_address::list_afinet_netifas()
+        .map_err(|e| DomainError::Internal(format!("list interfaces: {e}")))?;
+
+    let mut addrs: Vec<String> = ifaces
+        .into_iter()
+        .filter_map(|(_name, ip)| match ip {
+            std::net::IpAddr::V4(v4) => Some(v4),
+            // IPv6 link-local addresses are common on Mac (fe80::…) but
+            // require a zone identifier to be reachable; not useful for
+            // a manual "type this into your phone" flow.
+            _ => None,
+        })
+        .filter(|v4| {
+            !v4.is_loopback()
+                && !v4.is_link_local()
+                && !is_docker_bridge(*v4)
+        })
+        .map(|v4| v4.to_string())
+        .collect();
+    addrs.sort();
+    addrs.dedup();
+    Ok(addrs)
+}
+
+/// Docker's default bridge sits on 172.17.0.0/16 — visible to the host
+/// but not routable from any other machine. Helps de-noise the picker
+/// on dev laptops that happen to have Docker Desktop running.
+fn is_docker_bridge(ip: std::net::Ipv4Addr) -> bool {
+    let [a, b, _, _] = ip.octets();
+    a == 172 && b == 17
+}
+
 async fn snapshot(inner: &MutexGuard<'_, CloudInner>, healthy: bool) -> CloudServiceStatus {
     let pid = inner.child.as_ref().and_then(|c| c.id());
     let state = match (pid, healthy, inner.last_error.is_some()) {
