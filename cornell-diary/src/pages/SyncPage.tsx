@@ -5,6 +5,8 @@ import { QRGenerator } from '../components/sync/QRGenerator';
 import { QRScanner } from '../components/sync/QRScanner';
 import { CloudServicePanel } from '../components/sync/CloudServicePanel';
 import { CloudSyncPanel } from '../components/sync/CloudSyncPanel';
+import { CloudProfileSelector } from '../components/settings/CloudProfileSelector';
+import { AutoSyncToggle } from '../components/settings/AutoSyncToggle';
 import { useT } from '../locales';
 
 export function SyncPage() {
@@ -21,7 +23,11 @@ export function SyncPage() {
 
       <CloudServicePanel />
 
+      <CloudProfileSelector />
+
       <CloudSyncPanel />
+
+      <AutoSyncToggle />
 
       <div className="sync-card">
         <section className="sync-card__item">
