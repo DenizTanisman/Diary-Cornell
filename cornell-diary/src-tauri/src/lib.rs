@@ -14,6 +14,7 @@ use crate::commands::cloud_service::{
     cloud_service_status, get_lan_addresses, start_cloud_service, stop_cloud_service,
     CloudServiceState,
 };
+use crate::commands::mdns::{discover_cloud_servers, MdnsState};
 use crate::commands::profile::{
     delete_cloud_profile, get_active_cloud_profile, list_cloud_profiles, set_active_cloud_profile,
     upsert_cloud_profile, ProfileState,
@@ -299,11 +300,19 @@ pub fn run() {
                     .unwrap_or(false)
             });
 
+            // mDNS state — Mac advertises Cloud here, phone discovers
+            // it from the same crate via discover_cloud_servers. The
+            // advertise lifecycle is hooked into start/stop_cloud_service
+            // so it automatically tracks whether Cloud is up.
+            let mdns_state = MdnsState::default();
+
             if auto_start_cloud {
                 let state_for_spawn = cloud_service_state.clone();
+                let mdns_for_spawn = mdns_state.clone();
                 tauri::async_runtime::spawn(async move {
                     match commands::cloud_service::start_cloud_service_internal(
                         &state_for_spawn,
+                        &mdns_for_spawn,
                     )
                     .await
                     {
@@ -322,6 +331,7 @@ pub fn run() {
             }
 
             app.manage(cloud_service_state);
+            app.manage(mdns_state);
 
             // FAZ 3.2: WS client for live multi-user CRDT exchange. The
             // engine is initialised lazily on the first subscribe_crdt
@@ -373,6 +383,7 @@ pub fn run() {
             stop_cloud_service,
             cloud_service_status,
             get_lan_addresses,
+            discover_cloud_servers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

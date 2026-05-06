@@ -17,6 +17,15 @@ const EMPTY_FORM: ProfileFormValues = {
   apiKey: '',
 };
 
+interface DiscoveredService {
+  name: string;
+  url: string;
+  port: number;
+  addresses: string[];
+}
+
+const DISCOVER_TIMEOUT_MS = 4000;
+
 export function CloudProfileSelector() {
   const [profiles, setProfiles] = useState<CloudProfile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -25,6 +34,8 @@ export function CloudProfileSelector() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [restartHint, setRestartHint] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredService[] | null>(null);
 
   const reload = async () => {
     setError(null);
@@ -119,6 +130,52 @@ export function CloudProfileSelector() {
     }
   };
 
+  const runDiscover = async () => {
+    setScanning(true);
+    setError(null);
+    setDiscovered(null);
+    try {
+      const found = await invoke<DiscoveredService[]>('discover_cloud_servers', {
+        timeoutMs: DISCOVER_TIMEOUT_MS,
+      });
+      setDiscovered(found);
+    } catch (e) {
+      setError(String(e));
+      setDiscovered([]);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const addDiscoveredAsProfile = async (svc: DiscoveredService) => {
+    // Build a stable id from the first address + port so re-scanning
+    // the same network doesn't pile up duplicate profiles.
+    const addr = svc.addresses[0] ?? 'unknown';
+    const id = `lan-${addr.replace(/\./g, '-')}-${svc.port}`;
+    setBusy(true);
+    setError(null);
+    try {
+      await invoke('upsert_cloud_profile', {
+        profile: {
+          id,
+          name: svc.name || `LAN ${addr}`,
+          baseUrl: svc.url,
+          apiKey: null,
+          isActive: false,
+        },
+      });
+      await reload();
+      // Drop the matching entry from the discovered list so the user
+      // sees it as "added" — list shrinks, the new profile is now in
+      // the radio list above.
+      setDiscovered((prev) => prev?.filter((d) => d.url !== svc.url) ?? null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="cloud-profile-selector">
       <h3 style={{ marginTop: 0 }}>Cloud Profile</h3>
@@ -183,11 +240,53 @@ export function CloudProfileSelector() {
         ))}
       </ul>
 
-      <div style={{ marginTop: '0.8rem' }}>
+      <div style={{ marginTop: '0.8rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
         <button onClick={startCreate} disabled={busy || form !== null}>
           + Add Custom Profile
         </button>
+        <button onClick={runDiscover} disabled={busy || scanning}>
+          {scanning ? '🔍 Aranıyor…' : '🔍 LAN\'da Cloud Ara'}
+        </button>
       </div>
+
+      {discovered !== null && (
+        <div className="cloud-profile-discover">
+          <div className="cloud-profile-discover__header">
+            {discovered.length === 0 ? (
+              <span>LAN'da bulunan başka Cloud yok.</span>
+            ) : (
+              <span>
+                {discovered.length} Cloud bulundu — eklemek istediğine bas:
+              </span>
+            )}
+            <button
+              type="button"
+              className="cloud-profile-discover__close"
+              onClick={() => setDiscovered(null)}
+              aria-label="Sonuçları kapat"
+            >
+              ✕
+            </button>
+          </div>
+          <ul className="cloud-profile-discover__list">
+            {discovered.map((svc) => (
+              <li key={svc.url} className="cloud-profile-discover__item">
+                <div>
+                  <strong>{svc.name}</strong>
+                  <code className="cloud-profile-discover__url">{svc.url}</code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void addDiscoveredAsProfile(svc)}
+                  disabled={busy}
+                >
+                  Profil olarak ekle
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {form && (
         <fieldset
