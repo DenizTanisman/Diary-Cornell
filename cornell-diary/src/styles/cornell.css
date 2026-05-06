@@ -6,20 +6,6 @@
   background: var(--bg-primary);
 }
 
-/* Diary content stays in a comfortable reading column at every viewport
-   so the wide-screen view reads identically to the narrow one — same
-   line lengths, same card sizes, just more margin around the column.
-   --content-column applies to header, grid, and summary so they share
-   the same horizontal anchor. */
-.cornell-header,
-.cornell-grid,
-.cornell-summary {
-  width: 100%;
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 .cornell-header {
   display: flex;
   align-items: center;
@@ -101,30 +87,25 @@
 }
 
 .cornell-header__counter {
-  /* Word count hidden in every layout — the SaveIndicator already
-     covers entry status, and the counter visually competes with the
-     date label when they sit on the same row. */
-  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
-/* Single-column layout at every viewport: main on top, cue panel
-   below it. Mirrors the previous narrow-only layout so wide screens
-   read identically to the phone view. */
 .cornell-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 2fr;
   grid-template-areas:
-    'main'
-    'cue';
+    'cue main';
   flex: 1;
   min-height: 0;
 }
 
 .cornell-cue {
   grid-area: cue;
-  padding: 1rem 1.15rem;
+  padding: 1.5rem;
   background: var(--bg-tertiary);
-  border-top: 2px solid var(--border-primary);
+  border-right: 2px solid var(--border-primary);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -133,8 +114,7 @@
 
 .cornell-main {
   grid-area: main;
-  padding: 1rem 1.15rem;
-  min-height: 40vh;
+  padding: 1.5rem 2rem;
   display: flex;
   flex-direction: column;
 }
@@ -142,7 +122,7 @@
 .cornell-main__textarea {
   flex: 1;
   width: 100%;
-  min-height: 220px;
+  min-height: 300px;
   font: inherit;
   font-size: 1rem;
   line-height: 1.8;
@@ -155,9 +135,9 @@
 
 .cornell-summary {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
   border-top: 2px solid var(--border-primary);
   background: var(--bg-secondary);
 }
@@ -779,13 +759,47 @@
   }
 
   /* Keep the date at the wide-viewport size + weight; the centred
-     ellipsis already handles overflow without shrinking the type.
-     Grid / cue / summary collapse rules are now defaults (single
-     column at every viewport) so we don't restate them here. */
+     ellipsis already handles overflow without shrinking the type. */
+
+  .cornell-header__counter {
+    /* Word counter is the first thing to drop on narrow viewports —
+     the SaveIndicator already covers entry status. */
+    display: none;
+  }
 
   .cornell-header__right {
     margin-left: auto;
     font-size: 0.75rem;
+  }
+
+  .cornell-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'main'
+      'cue';
+  }
+
+  .cornell-main {
+    padding: 1rem 1.15rem;
+    min-height: 40vh;
+  }
+
+  .cornell-main__textarea {
+    min-height: 220px;
+    font-size: 1rem;
+  }
+
+  .cornell-cue {
+    border-right: none;
+    border-top: 2px solid var(--border-primary);
+    padding: 1rem 1.15rem;
+    max-height: none;
+  }
+
+  .cornell-summary {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
   }
 
   .cornell-summary__input {
