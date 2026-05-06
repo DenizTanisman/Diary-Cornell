@@ -11,8 +11,7 @@ use crate::commands::entries::{
     diary_set_setting, diary_upsert, AppState,
 };
 use crate::commands::cloud_service::{
-    cloud_service_status, get_lan_addresses, start_cloud_service, stop_cloud_service,
-    CloudServiceState,
+    cloud_service_status, start_cloud_service, stop_cloud_service, CloudServiceState,
 };
 use crate::commands::profile::{
     delete_cloud_profile, get_active_cloud_profile, list_cloud_profiles, set_active_cloud_profile,
@@ -363,7 +362,6 @@ pub fn run() {
             start_cloud_service,
             stop_cloud_service,
             cloud_service_status,
-            get_lan_addresses,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

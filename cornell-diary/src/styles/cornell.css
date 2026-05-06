@@ -742,68 +742,6 @@
   color: var(--text-tertiary);
 }
 
-/* Sprint D-1 — surfaces the host's reachable LAN addresses while Cloud
-   is running, so the user can paste one into a phone's Cloud Profile
-   without digging through System Settings. */
-.cloud-service-panel__lan {
-  margin-top: 0.85rem;
-  padding: 0.75rem 0.85rem;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-}
-
-.cloud-service-panel__lan-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.cloud-service-panel__lan-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.cloud-service-panel__lan-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: 6px;
-}
-
-.cloud-service-panel__lan-item code {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  word-break: break-all;
-}
-
-.cloud-service-panel__lan-copy {
-  flex-shrink: 0;
-  min-height: 36px;
-  padding: 0.35rem 0.7rem;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: 6px;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.cloud-service-panel__lan-copy:hover,
-.cloud-service-panel__lan-copy:focus-visible {
-  border-color: var(--accent-ink);
-  background: var(--bg-tertiary);
-  outline: none;
-}
-
 .auto-sync-toggle__label,
 .cloud-service-panel__autostart {
   display: flex;
