@@ -41,6 +41,11 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2.5"
+# Auto-load cornell-diary/.env so dev runs of `cargo run` (or pnpm
+# tauri dev) inherit DATABASE_URL / CLOUD_URL without a manual
+# `source .env`. Production bundles miss the file silently — env is
+# expected to come from the OS at that point.
+dotenvy = "0.15"
 
 # --- FAZ 2: Cloud REST sync ---
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

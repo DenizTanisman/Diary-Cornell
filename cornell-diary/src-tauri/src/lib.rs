@@ -97,6 +97,15 @@ fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Auto-load .env so `cargo run` from src-tauri/ inherits the
+    // sibling `cornell-diary/.env` (DATABASE_URL, CLOUD_URL, etc.)
+    // without the developer having to `set -a; source .env; set +a`
+    // every time. dotenvy walks the cwd up to the first hit, so it
+    // finds cornell-diary/.env from inside src-tauri/. .ok() means
+    // production bundles (no .env present) silently skip — vars are
+    // expected to come from the OS environment in that case.
+    let _ = dotenvy::dotenv();
+
     // Faz 1.3: Sentry. Empty DSN → no init, no overhead, no network.
     // The `_guard` keeps the client alive for the process lifetime;
     // dropping it flushes pending events.
