@@ -99,18 +99,22 @@ fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Sprint B-7 — explicit panic hook that prints to stderr (which
-    // Tauri redirects to logcat under tag RustStdoutStderr on Android)
-    // so silent setup-hook failures don't disappear into a splash that
-    // dies in 700 ms with no diagnostic. Wraps the default hook so the
-    // backtrace still goes through the usual machinery.
+    // H-1 — explicit panic hook that fans out to BOTH tracing::error
+    // (so logcat picks it up via tracing-android on Android) AND stderr
+    // (so desktop terminal sees it the way it always has). Earlier
+    // sprint hooks used eprintln only, which silently disappeared on
+    // Android because Tauri's stderr is /dev/null on mobile. Wraps the
+    // default hook so the backtrace still goes through the usual path.
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "<no-location>".into());
+        tracing::error!(target: "cornell_diary::panic", at = %location, "{}", info);
         eprintln!("=== cornell_diary PANIC ===");
         eprintln!("{info}");
-        if let Some(loc) = info.location() {
-            eprintln!("at {}:{}:{}", loc.file(), loc.line(), loc.column());
-        }
+        eprintln!("at {location}");
         eprintln!("===========================");
         prev_hook(info);
     }));
@@ -149,11 +153,30 @@ pub fn run() {
         ))
     });
 
+    // H-1 — tracing init forks per platform. Desktop keeps the existing
+    // stderr fmt subscriber. Android wires `tracing-android`, which
+    // forwards every event through __android_log_print to logcat under
+    // the `cornell_diary` tag — without it, our tracing::info! lines
+    // and the panic hook below disappear into Tauri's nulled stderr.
+    // Same env filter on both sides so RUST_LOG behaves identically.
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "cornell_diary=info,sqlx=warn".into());
+
+    #[cfg(target_os = "android")]
+    {
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        let android_layer = tracing_android::layer("cornell_diary")
+            .expect("init tracing-android logcat layer");
+        let _ = tracing_subscriber::registry()
+            .with(env_filter)
+            .with(android_layer)
+            .try_init();
+    }
+
+    #[cfg(not(target_os = "android"))]
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "cornell_diary=info,sqlx=warn".into()),
-        )
+        .with_env_filter(env_filter)
         .with_target(false)
         .try_init();
 

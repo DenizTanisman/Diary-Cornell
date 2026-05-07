@@ -90,6 +90,14 @@ sqlite = ["sqlx/sqlite"]
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "macros", "migrate", "chrono", "uuid", "json", "sqlite"] }
 
+# H-1 — Hot-fix sprint diagnostic foundation. `tracing-android` is a
+# layer that writes tracing events through __android_log_print so all
+# our existing tracing::info!/warn!/error! lines (plus the panic hook)
+# land in `adb logcat -s cornell_diary`. Without this Tauri's stderr
+# is /dev/null on Android and any setup-hook panic dies silently.
+[target.'cfg(target_os = "android")'.dependencies]
+tracing-android = "0.2"
+
 [dev-dependencies]
 tokio = { version = "1.40", features = ["test-util", "macros", "rt-multi-thread"] }
 serial_test = "3"
