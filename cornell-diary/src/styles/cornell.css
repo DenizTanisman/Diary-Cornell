@@ -787,7 +787,7 @@
 
 .cloud-service-panel__lan-copy {
   flex-shrink: 0;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0.35rem 0.7rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -955,11 +955,20 @@
      default now (option-2 typography boost), so they're omitted here. */
   .cue-add__input,
   .cue-add__button,
+  .cue-item__title,
   .cornell-nav-button,
   .cornell-header__date--button,
   .modal__close,
   .modal__primary {
     min-height: 44px;
+  }
+
+  /* mDNS discover popover sits inside CloudSyncPanel (visible on
+     mobile). The close glyph defaults to 32×32 — bump to the 44 px
+     touch floor on Android. */
+  .cloud-profile-discover__close {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   /* .sync-card stays a 2×2 grid at every width — user preference: the
