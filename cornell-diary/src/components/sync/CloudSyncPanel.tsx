@@ -12,13 +12,16 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import { useSyncStatus } from '../../hooks/useSyncStatus';
+import { usePlatform } from '../../hooks/usePlatform';
+import type { Platform } from '../../hooks/usePlatform';
 import type { ConnectReport, SyncReport } from '../../types/cloudSync';
 
 export function CloudSyncPanel() {
   const { status, error: statusError, refresh } = useSyncStatus();
+  const { platform } = usePlatform();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [deviceLabel, setDeviceLabel] = useState(detectDeviceLabel());
+  const [deviceLabel, setDeviceLabel] = useState(() => detectDeviceLabel(platform));
   const [busy, setBusy] = useState<'idle' | 'connect' | 'trigger' | 'disconnect' | 'forgot' | 'reset'>('idle');
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<SyncReport | null>(null);
@@ -395,13 +398,30 @@ export function CloudSyncPanel() {
   );
 }
 
-function detectDeviceLabel(): string {
-  // Fallback only — Tauri provides a real hostname via tauri-plugin-os if
-  // we want to invoke('hostname'); the user can edit before submitting.
-  if (typeof navigator !== 'undefined' && navigator.platform) {
-    return `Diary on ${navigator.platform}`;
+function detectDeviceLabel(platform: Platform): string {
+  // Tauri's plugin-os reports the host OS as a friendly token; on Android
+  // it returns 'android' even though the WebView's navigator.platform
+  // string is 'Linux aarch64' (kernel-level). We branch on the Tauri
+  // value first so mobile builds don't ship a "Diary on Linux aarch64"
+  // label to Cloud, then fall back to navigator.platform for the
+  // browser preview / vitest path.
+  switch (platform) {
+    case 'android':
+      return 'Diary on Android';
+    case 'ios':
+      return 'Diary on iOS';
+    case 'macos':
+      return 'Diary on Mac';
+    case 'windows':
+      return 'Diary on Windows';
+    case 'linux':
+      return 'Diary on Linux';
+    default:
+      if (typeof navigator !== 'undefined' && navigator.platform) {
+        return `Diary on ${navigator.platform}`;
+      }
+      return 'Diary';
   }
-  return 'Diary';
 }
 
 function formatTime(iso: string | null | undefined): string {

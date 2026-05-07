@@ -389,7 +389,11 @@
    inject window insets supersede this without double-counting. iOS
    keeps env() honest, so it doesn't need this override. */
 body[data-platform='android'] .toolbar {
-  padding-top: max(env(safe-area-inset-top, 0px), 32px);
+  /* 32 px wasn't enough on a Galaxy with a 5G/notch row — the clock
+     still grazed the active-tab pill. Bump to 44 px which matches the
+     status-bar height on most modern Android handsets. max() still
+     defers to a real env() inset if a future MainActivity injects one. */
+  padding-top: max(env(safe-area-inset-top, 0px), 44px);
 }
 
 .toolbar::-webkit-scrollbar {
