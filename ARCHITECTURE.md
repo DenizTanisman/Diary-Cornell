@@ -814,15 +814,19 @@ Users can add custom profiles via Settings → Cloud Profile. Switching the acti
 
 ## 8. Roadmap
 
-### 8.1 Active sprint — Android build
+### 8.1 Completed sprint — Android build (closed 2026-05-08)
 
-Diary is SQLite-ready (`--features sqlite --no-default-features`). Sprint progress as of 2026-05-07:
+Diary is SQLite-ready (`--features sqlite --no-default-features`). Sprint outcome:
 
 1. ✅ **Tauri capabilities + signing config** — Sprint B shipped a release-signed APK pipeline ([`6b82d2e`](../../commit/6b82d2e)) reading `keystore.properties` next to `gen/android/`, falling back to debug signing when absent.
 2. ✅ **`cornell-diary/android-overrides/`** — manifest network-security policy + signed `app-build.gradle.kts`, reapplied via `scripts/apply_android_overrides.sh` after every `tauri android init`. See [`cornell-diary/android-overrides/README.md`](cornell-diary/android-overrides/README.md).
 3. ✅ **Narrow-viewport UI tweaks** — header collapse, archive blank-row filter, and platform-aware UI ([`cf9e3e9`](../../commit/cf9e3e9)): `usePlatform` hook, CloudServicePanel hidden on mobile (it spawns processes the Android sandbox can't reach), DomainError formatting fix.
 4. ✅ **Tap-target sizing audit** — cornell core was already at the WCAG 2.5.5 floor from the option-2 typography pass; the residual sub-44 px elements (cue title input, mDNS discover close, lan-copy button) were bumped in [`2f3feeb`](../../commit/2f3feeb).
-5. ⏳ **Sideload run on physical Android device** — universal release APK produced at `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`; awaiting hands-on verification on a real handset.
+5. ✅ **Sideload run on physical Android device** — Galaxy R5CY91R0Z9E. Manual test surfaced three follow-ups, all fixed in the same sprint:
+   - Status-bar overlap: Tauri 2 Android WebView doesn't translate window insets to `env(safe-area-inset-top)`; reserved 44 px on `.toolbar` via `body[data-platform='android']` ([`0b6cb80`](../../commit/0b6cb80) / [`edce0ab`](../../commit/edce0ab)).
+   - Device label read "Diary on Linux aarch64" because `navigator.platform` is kernel-level on Android. Branched on `@tauri-apps/plugin-os::platform()` first ([`edce0ab`](../../commit/edce0ab)).
+   - Default Cloud profile is `http://127.0.0.1:5001` — correct for desktop, dead loop on mobile. Replaced login form with a 3-step Turkish inline guide whenever `isMobile && (active profile is null OR localhost)` ([`e269b9d`](../../commit/e269b9d) + null-safe guard [`e767c5d`](../../commit/e767c5d)). Form auto-restores on profile switch.
+6. ⏭ **H-2 hot-fix folded in** — widened the Docker-bridge filter from 172.17/16 to the full 172.16/12 RFC1918 block ([`2048f76`](../../commit/2048f76)) so the Galaxy stops dialling sibling docker-compose IPs and timing out.
 
 ### 8.2 Beyond Android
 
