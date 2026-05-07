@@ -814,15 +814,15 @@ Users can add custom profiles via Settings → Cloud Profile. Switching the acti
 
 ## 8. Roadmap
 
-### 8.1 Next sprint — Android build
+### 8.1 Active sprint — Android build
 
-Diary is already SQLite-ready (`--features sqlite --no-default-features`). The sprint adds:
+Diary is SQLite-ready (`--features sqlite --no-default-features`). Sprint progress as of 2026-05-07:
 
-1. Android-specific Tauri capabilities + signing config
-2. `cornell-diary/android-overrides/` — manifest + strings (already scaffolded; see [`cornell-diary/android-overrides/README.md`](cornell-diary/android-overrides/README.md))
-3. UI tweaks for narrow viewports (some already shipped: header collapse, archive blank-row filter)
-4. Tap-target sizing audit on cue items
-5. Test build + sideload run on physical Android device
+1. ✅ **Tauri capabilities + signing config** — Sprint B shipped a release-signed APK pipeline ([`6b82d2e`](../../commit/6b82d2e)) reading `keystore.properties` next to `gen/android/`, falling back to debug signing when absent.
+2. ✅ **`cornell-diary/android-overrides/`** — manifest network-security policy + signed `app-build.gradle.kts`, reapplied via `scripts/apply_android_overrides.sh` after every `tauri android init`. See [`cornell-diary/android-overrides/README.md`](cornell-diary/android-overrides/README.md).
+3. ✅ **Narrow-viewport UI tweaks** — header collapse, archive blank-row filter, and platform-aware UI ([`cf9e3e9`](../../commit/cf9e3e9)): `usePlatform` hook, CloudServicePanel hidden on mobile (it spawns processes the Android sandbox can't reach), DomainError formatting fix.
+4. ✅ **Tap-target sizing audit** — cornell core was already at the WCAG 2.5.5 floor from the option-2 typography pass; the residual sub-44 px elements (cue title input, mDNS discover close, lan-copy button) were bumped in [`2f3feeb`](../../commit/2f3feeb).
+5. ⏳ **Sideload run on physical Android device** — universal release APK produced at `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`; awaiting hands-on verification on a real handset.
 
 ### 8.2 Beyond Android
 
