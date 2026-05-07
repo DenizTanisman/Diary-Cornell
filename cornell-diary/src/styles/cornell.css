@@ -379,6 +379,19 @@
   -ms-overflow-style: none;
 }
 
+/* Android WebView (Tauri 2 mobile) renders edge-to-edge but does NOT
+   translate the window inset into env(safe-area-inset-top), so the
+   body-level safe-area padding in globals.css evaluates to 0 on a
+   Galaxy build and the toolbar lands under the status bar (clock,
+   carrier, battery icons paint over "Bugün/Arşiv/…"). Reserve a
+   fallback that covers the standard 24 dp Android status bar
+   (~32 px @ xhdpi) — max() lets a future MainActivity that *does*
+   inject window insets supersede this without double-counting. iOS
+   keeps env() honest, so it doesn't need this override. */
+body[data-platform='android'] .toolbar {
+  padding-top: max(env(safe-area-inset-top, 0px), 32px);
+}
+
 .toolbar::-webkit-scrollbar {
   display: none;
 }
