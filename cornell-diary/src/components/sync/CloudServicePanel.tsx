@@ -11,6 +11,18 @@ interface CloudServiceStatus {
 const POLL_INTERVAL_MS = 1500;
 const CLOUD_PORT = 5001;
 
+/** Tauri DomainError comes back as `{code, message}` — `String(e)` on
+ *  that object yields the dreaded "[object Object]". Pull the human
+ *  message out and prefix the code so the error band reads. */
+function extractMessage(e: unknown): string {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const env = e as { code?: string; message?: string };
+    if (env.message) return env.code ? `[${env.code}] ${env.message}` : env.message;
+  }
+  return 'bilinmeyen hata';
+}
+
 export function CloudServicePanel() {
   const [status, setStatus] = useState<CloudServiceStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +39,7 @@ export function CloudServicePanel() {
       setStatus(s);
     } catch (e) {
       setStatus(null);
-      setError(String(e));
+      setError(extractMessage(e));
     }
   };
 
@@ -66,7 +78,7 @@ export function CloudServicePanel() {
       await invoke('set_auto_start_cloud', { enabled: next });
     } catch (e) {
       setAutoStart(!next);
-      setError(String(e));
+      setError(extractMessage(e));
     }
   };
 
@@ -77,7 +89,7 @@ export function CloudServicePanel() {
       const s = await invoke<CloudServiceStatus>('start_cloud_service');
       setStatus(s);
     } catch (e) {
-      setError(String(e));
+      setError(extractMessage(e));
     } finally {
       setBusy(false);
       void refresh();
@@ -91,7 +103,7 @@ export function CloudServicePanel() {
       const s = await invoke<CloudServiceStatus>('stop_cloud_service');
       setStatus(s);
     } catch (e) {
-      setError(String(e));
+      setError(extractMessage(e));
     } finally {
       setBusy(false);
       void refresh();

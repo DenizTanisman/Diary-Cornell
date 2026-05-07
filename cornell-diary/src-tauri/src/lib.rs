@@ -99,6 +99,22 @@ fn resolve_database_url(app: &tauri::App) -> anyhow::Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Sprint B-7 — explicit panic hook that prints to stderr (which
+    // Tauri redirects to logcat under tag RustStdoutStderr on Android)
+    // so silent setup-hook failures don't disappear into a splash that
+    // dies in 700 ms with no diagnostic. Wraps the default hook so the
+    // backtrace still goes through the usual machinery.
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        eprintln!("=== cornell_diary PANIC ===");
+        eprintln!("{info}");
+        if let Some(loc) = info.location() {
+            eprintln!("at {}:{}:{}", loc.file(), loc.line(), loc.column());
+        }
+        eprintln!("===========================");
+        prev_hook(info);
+    }));
+
     // Auto-load .env so `cargo run` from src-tauri/ inherits the
     // sibling `cornell-diary/.env` (DATABASE_URL, CLOUD_URL, etc.)
     // without the developer having to `set -a; source .env; set +a`
@@ -106,6 +122,12 @@ pub fn run() {
     // finds cornell-diary/.env from inside src-tauri/. .ok() means
     // production bundles (no .env present) silently skip — vars are
     // expected to come from the OS environment in that case.
+    //
+    // Skip on Android — the executable's cwd there is `/` (init's
+    // default), and walking up looking for .env hits permission
+    // errors on system mount points. Android setup uses SQLite + the
+    // app data dir, no env-driven config needed.
+    #[cfg(not(target_os = "android"))]
     let _ = dotenvy::dotenv();
 
     // Faz 1.3: Sentry. Empty DSN → no init, no overhead, no network.
@@ -278,7 +300,9 @@ pub fn run() {
             // Tier 3 follow-up: read the "auto-start cloud on Diary
             // launch" toggle and, if on, spawn the Cloud uvicorn from a
             // managed child. Default OFF — only opt-in users pay the
-            // ~250 MB RAM cost.
+            // ~250 MB RAM cost. Mobile targets skip the read entirely
+            // since the spawn path below is also gated out for them.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             let auto_start_cloud = tauri::async_runtime::block_on(async {
                 use sqlx::Row;
                 #[cfg(not(diary_sqlite))]
@@ -306,6 +330,13 @@ pub fn run() {
             // so it automatically tracks whether Cloud is up.
             let mdns_state = MdnsState::default();
 
+            // Mobile platforms can't host Cloud (~/Projects/Cloud
+            // doesn't exist on Android/iOS, and even if it did the
+            // app sandbox blocks spawning external processes). Skip
+            // the auto-start path entirely there so we don't pollute
+            // last_error with a "klasör bulunamadı" the panel would
+            // happily display next to the unrelated login form.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if auto_start_cloud {
                 let state_for_spawn = cloud_service_state.clone();
                 let mdns_for_spawn = mdns_state.clone();

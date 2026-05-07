@@ -7,10 +7,12 @@ import { CloudServicePanel } from '../components/sync/CloudServicePanel';
 import { CloudSyncPanel } from '../components/sync/CloudSyncPanel';
 import { CloudProfileSelector } from '../components/settings/CloudProfileSelector';
 import { AutoSyncToggle } from '../components/settings/AutoSyncToggle';
+import { usePlatform } from '../hooks/usePlatform';
 import { useT } from '../locales';
 
 export function SyncPage() {
   const t = useT();
+  const { isMobile } = usePlatform();
   const dialog = useSyncStore((s) => s.dialog);
   const openDialog = useSyncStore((s) => s.openDialog);
   const closeDialog = useSyncStore((s) => s.closeDialog);
@@ -21,7 +23,9 @@ export function SyncPage() {
     <div className="page-container">
       <h1>{t('sync.title')}</h1>
 
-      <CloudServicePanel />
+      {/* Cloud Servisi paneli sadece masaüstünde — telefon Cloud'u
+          host edemez (`~/Projects/Cloud` yok), sadece bağlanır. */}
+      {!isMobile && <CloudServicePanel />}
 
       <CloudProfileSelector />
 
