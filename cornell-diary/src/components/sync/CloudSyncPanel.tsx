@@ -40,8 +40,16 @@ export function CloudSyncPanel() {
   // dial *its own* :5001, where Cloud doesn't exist. Replace the login
   // form with an inline guide directing the user to add a LAN profile;
   // hides automatically the moment they switch to a real LAN URL.
+  //
+  // Fail-safe: if useActiveProfile() hasn't resolved yet (or the IPC
+  // errored on a fresh mobile install where the cloud_profiles row
+  // hasn't been seeded), treat that as localhost too — better to show
+  // the guide than to render a login form that's about to dial the
+  // phone's own :5001.
   const showMobileLocalhostGuide =
-    isMobile && !isConnected && isLocalhostBaseUrl(activeProfile?.baseUrl);
+    isMobile &&
+    !isConnected &&
+    (!activeProfile || isLocalhostBaseUrl(activeProfile.baseUrl));
 
   async function onConnect() {
     setBusy('connect');
