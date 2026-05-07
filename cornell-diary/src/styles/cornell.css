@@ -543,6 +543,39 @@ body[data-platform='android'] .toolbar {
   gap: 0.65rem;
 }
 
+/* Mobile-only inline guide rendered when the active Cloud profile points
+   at localhost — login form would otherwise dial the phone's own :5001
+   and produce a confusing storage error. */
+.cloud-sync-panel__mobile-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cloud-sync-panel__mobile-guide code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+
+.cloud-sync-panel__guide-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.cloud-sync-panel__guide-steps li strong {
+  color: var(--text-primary);
+}
+
 .cloud-sync-panel__field {
   display: flex;
   flex-direction: column;

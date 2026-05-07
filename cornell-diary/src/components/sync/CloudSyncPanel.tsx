@@ -14,11 +14,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSyncStatus } from '../../hooks/useSyncStatus';
 import { usePlatform } from '../../hooks/usePlatform';
 import type { Platform } from '../../hooks/usePlatform';
+import { useActiveProfile } from '../../hooks/useActiveProfile';
 import type { ConnectReport, SyncReport } from '../../types/cloudSync';
 
 export function CloudSyncPanel() {
   const { status, error: statusError, refresh } = useSyncStatus();
-  const { platform } = usePlatform();
+  const { platform, isMobile } = usePlatform();
+  const activeProfile = useActiveProfile();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [deviceLabel, setDeviceLabel] = useState(() => detectDeviceLabel(platform));
@@ -33,6 +35,13 @@ export function CloudSyncPanel() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const isConnected = status?.enabled ?? false;
+
+  // Mobile + localhost profile = certain auth failure: the phone would
+  // dial *its own* :5001, where Cloud doesn't exist. Replace the login
+  // form with an inline guide directing the user to add a LAN profile;
+  // hides automatically the moment they switch to a real LAN URL.
+  const showMobileLocalhostGuide =
+    isMobile && !isConnected && isLocalhostBaseUrl(activeProfile?.baseUrl);
 
   async function onConnect() {
     setBusy('connect');
@@ -126,7 +135,34 @@ export function CloudSyncPanel() {
     <section className="cloud-sync-panel" data-testid="cloud-sync-panel">
       <h2 className="sync-card__title">Cloud Senkronizasyonu</h2>
 
-      {!isConnected && authMode === 'login' && (
+      {showMobileLocalhostGuide && (
+        <div className="cloud-sync-panel__mobile-guide" data-testid="cloud-mobile-guide">
+          <p className="sync-card__description">
+            Bu telefon kendi <code>{activeProfile?.baseUrl ?? '127.0.0.1'}</code> adresine
+            bağlanmaya çalışıyor — ama Cloud bu telefonda değil, Mac'te. Bağlanmak için:
+          </p>
+          <ol className="cloud-sync-panel__guide-steps">
+            <li>
+              <strong>Mac'te Cloud servisini başlat.</strong> Mac'teki Diary uygulamasında
+              Senkronizasyon → "Cloud Servis" panelinden <em>Başlat</em>'a bas.
+            </li>
+            <li>
+              Yukarıdaki <strong>+ Add Custom Profile</strong> butonuyla Mac'in LAN
+              adresi için yeni bir profil ekle (örn.{' '}
+              <code>http://192.168.1.5:5001</code>).
+            </li>
+            <li>
+              Mac'te Cloud çalışıyorsa <strong>🔍 LAN'da Cloud Ara</strong>'ya basıp
+              listeden seçebilirsin — IP'yi elle bilmen gerekmez.
+            </li>
+          </ol>
+          <p className="sync-card__description">
+            Yeni profili seçer seçmez bu giriş formu geri gelir.
+          </p>
+        </div>
+      )}
+
+      {!isConnected && !showMobileLocalhostGuide && authMode === 'login' && (
         <form
           className="cloud-sync-panel__form"
           onSubmit={(e) => {
@@ -210,7 +246,7 @@ export function CloudSyncPanel() {
         </form>
       )}
 
-      {!isConnected && authMode === 'forgot' && (
+      {!isConnected && !showMobileLocalhostGuide && authMode === 'forgot' && (
         <form
           className="cloud-sync-panel__form"
           onSubmit={(e) => {
@@ -261,7 +297,7 @@ export function CloudSyncPanel() {
         </form>
       )}
 
-      {!isConnected && authMode === 'reset' && (
+      {!isConnected && !showMobileLocalhostGuide && authMode === 'reset' && (
         <form
           className="cloud-sync-panel__form"
           onSubmit={(e) => {
@@ -396,6 +432,21 @@ export function CloudSyncPanel() {
       )}
     </section>
   );
+}
+
+/** Catches the URLs that mobile-builds can never reach: `127.0.0.1`,
+ *  `localhost`, and `0.0.0.0`. We only inspect the host part so paths
+ *  / query strings don't accidentally pass through. Exhaustive list,
+ *  not a regex on the entire URL, because a future feature might use
+ *  `127.0.0.1.nip.io` style hosts and we don't want false positives. */
+function isLocalhostBaseUrl(baseUrl: string | null | undefined): boolean {
+  if (!baseUrl) return false;
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+  } catch {
+    return false;
+  }
 }
 
 function detectDeviceLabel(platform: Platform): string {
