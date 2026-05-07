@@ -266,7 +266,9 @@ pub async fn cloud_service_status(
 /// Sprint D-1 — list every IPv4 address the host owns that another
 /// device on the LAN could reach Cloud through. Skips loopback,
 /// link-local (169.254.x.x — DHCP fallback that nobody can route to),
-/// and Docker's default bridge (172.17.x.x — only the host sees it).
+/// and the full RFC1918 172.16/12 block where Docker carves bridges
+/// (172.17 default + 172.18+ for compose networks — only the host
+/// sees them).
 ///
 /// The phone-from-Mac flow needs this: `localhost:5001` works on the
 /// Mac itself, but a phone has to dial the Mac's actual LAN address
@@ -299,12 +301,22 @@ pub fn get_lan_addresses() -> Result<Vec<String>, DomainError> {
     Ok(addrs)
 }
 
-/// Docker's default bridge sits on 172.17.0.0/16 — visible to the host
-/// but not routable from any other machine. Helps de-noise the picker
-/// on dev laptops that happen to have Docker Desktop running.
-fn is_docker_bridge(ip: std::net::Ipv4Addr) -> bool {
+/// Suppress 172.16.0.0/12 — RFC1918 range Docker carves into per-network
+/// virtual bridges (default `docker0` is 172.17.0.0/16, custom compose
+/// networks pile up at 172.18 / 172.19 / …). All of them are visible
+/// from the host but unroutable from any other machine on the LAN, so
+/// surfacing them in the "phone reaches me at" list (or, worse,
+/// advertising them via mDNS) leads phones to dial unreachable IPs.
+/// H-2 hot-fix: a phone that joined the user's mDNS service was
+/// picking 172.18.57.25 (Docker compose network from a sibling
+/// project) and timing out. 192.168.x and 10.x stay through this
+/// filter because real Wi-Fi / Ethernet LANs live there.
+pub(crate) fn is_docker_bridge(ip: std::net::Ipv4Addr) -> bool {
     let [a, b, _, _] = ip.octets();
-    a == 172 && b == 17
+    // 172.16.0.0/12 covers 172.16.0.0 – 172.31.255.255. Real home
+    // routers don't hand out from this block; if you see one it's
+    // overwhelmingly a container / VPN tunnel virtual interface.
+    a == 172 && (16..=31).contains(&b)
 }
 
 async fn snapshot(inner: &MutexGuard<'_, CloudInner>, healthy: bool) -> CloudServiceStatus {

@@ -232,7 +232,10 @@ fn collect_lan_ipv4() -> Result<Vec<std::net::Ipv4Addr>, DomainError> {
     Ok(out)
 }
 
-fn is_docker_bridge(ip: std::net::Ipv4Addr) -> bool {
-    let [a, b, _, _] = ip.octets();
-    a == 172 && b == 17
-}
+// Reuse the cloud_service helper so the mDNS advertise list and the
+// "reachable from phone" picker apply the same filter. Both used to
+// suppress only 172.17.0.0/16 (default docker0); H-2 widened to the
+// full RFC1918 172.16/12 block after a Samsung Galaxy on the user's
+// LAN dialed 172.18.57.25 (a sibling project's docker-compose
+// network) for /auth/login and timed out.
+use crate::commands::cloud_service::is_docker_bridge;
