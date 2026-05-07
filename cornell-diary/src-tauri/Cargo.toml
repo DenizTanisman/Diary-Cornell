@@ -71,9 +71,24 @@ mdns-sd = "0.13"
 # Pick one. `postgres` is the desktop default; `sqlite` is the Android
 # (and future iOS) default — both feature an EntryRepository impl over
 # the shared trait so the rest of the Rust crate doesn't branch.
+#
+# Android note: `tauri android build` only knows how to *add* features
+# (it always carries forward the desktop default = ["postgres"]) and
+# does NOT pass --no-default-features. So Android builds end up with
+# postgres on AND need sqlite too; the target-specific dependency
+# override below auto-pulls sqlx/sqlite on android/ios so build.rs's
+# `diary_sqlite` cfg can resolve the type alias.
 default = ["postgres"]
 postgres = ["sqlx/postgres", "sqlx/uuid"]
 sqlite = ["sqlx/sqlite"]
+
+# `tauri android build` doesn't pass --features sqlite, so we lean on
+# Cargo's target-specific dependency table to force sqlx's sqlite
+# driver on for mobile targets. The runtime cfg flag (build.rs emits
+# `diary_sqlite` for android/ios) still picks which type alias and
+# repo impl wins; this just makes the symbols available to compile.
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "macros", "migrate", "chrono", "uuid", "json", "sqlite"] }
 
 [dev-dependencies]
 tokio = { version = "1.40", features = ["test-util", "macros", "rt-multi-thread"] }

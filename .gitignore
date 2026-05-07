@@ -15,6 +15,14 @@ new mds.zip
 *.dmg
 *.app
 
+# Sprint B — Android release signing. Keystore lives in
+# ~/.config/cornell-diary/ (outside the repo); keystore.properties is
+# the gitignored pointer that Gradle reads. Both must NEVER hit git.
+*.jks
+*.keystore
+keystore.properties
+cornell-diary/src-tauri/gen/android/keystore.properties
+
 # SQLite snapshots taken before destructive migrations.
 # Tracked locally so we can restore but never pushed (binary, PII).
 backups/

@@ -21,3 +21,9 @@ LAN reach. The default `usesCleartextTraffic="true"` was too permissive
 (a typo in Cloud Profile editor would silently work). The override config
 restricts cleartext to localhost / 127.0.0.1 / 10.0.2.2 / RFC 1918 LAN
 ranges; production URLs must be HTTPS.
+
+Sprint B added `app-build.gradle.kts` — release signing config that
+reads `keystore.properties` (gitignored sibling file) pointing at the
+production keystore in `~/.config/cornell-diary/`. Falls back to debug
+signing when the properties file is missing, so a fresh checkout still
+produces an installable APK without any secrets.
