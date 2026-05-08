@@ -16,6 +16,7 @@ import { usePlatform } from '../../hooks/usePlatform';
 import type { Platform } from '../../hooks/usePlatform';
 import { useActiveProfile } from '../../hooks/useActiveProfile';
 import type { ConnectReport, SyncReport } from '../../types/cloudSync';
+import { extractDomainErrorMessage as extractMessage } from '../../utils/cloudError';
 
 export function CloudSyncPanel() {
   const { status, error: statusError, refresh } = useSyncStatus();
@@ -492,11 +493,3 @@ function formatTime(iso: string | null | undefined): string {
   }
 }
 
-function extractMessage(e: unknown): string {
-  if (typeof e === 'string') return e;
-  if (e && typeof e === 'object') {
-    const env = e as { code?: string; message?: string };
-    if (env.message) return env.code ? `[${env.code}] ${env.message}` : env.message;
-  }
-  return 'unknown error';
-}

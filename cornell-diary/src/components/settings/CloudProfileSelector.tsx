@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 
 import { isProtectedProfile, type CloudProfile } from '../../types/cloudProfile';
+import { extractDomainErrorMessage } from '../../utils/cloudError';
 
 interface ProfileFormValues {
   id: string;
@@ -45,7 +46,7 @@ export function CloudProfileSelector() {
       setProfiles(list);
       setActiveId(active.id);
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
     }
   };
 
@@ -62,7 +63,7 @@ export function CloudProfileSelector() {
       setRestartHint(true);
       window.dispatchEvent(new CustomEvent('cloud-profile-changed', { detail: id }));
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -109,7 +110,7 @@ export function CloudProfileSelector() {
       setEditingId(null);
       await reload();
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -124,7 +125,7 @@ export function CloudProfileSelector() {
       await invoke('delete_cloud_profile', { id });
       await reload();
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -140,7 +141,7 @@ export function CloudProfileSelector() {
       });
       setDiscovered(found);
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
       setDiscovered([]);
     } finally {
       setScanning(false);
@@ -170,7 +171,7 @@ export function CloudProfileSelector() {
       // the radio list above.
       setDiscovered((prev) => prev?.filter((d) => d.url !== svc.url) ?? null);
     } catch (e) {
-      setError(String(e));
+      setError(extractDomainErrorMessage(e));
     } finally {
       setBusy(false);
     }
