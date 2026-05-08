@@ -830,11 +830,31 @@ Diary is SQLite-ready (`--features sqlite --no-default-features`). Sprint outcom
 
 ### 8.2 Beyond Android
 
-- **Hybrid classifier latency fix** — three queued items in `parser/README.md` (per-sentence timeout, broader HIGH catalogue, batched calls). When latency drops below 20 s for a 7-day report, flip the default.
+- **Hybrid classifier latency fix** — three queued items in `parser/README.md` (per-sentence timeout, broader HIGH catalogue, batched calls). When latency drops below 20 s for a 7-day report, flip the default. Started 2026-05-08, paused mid-stream when the LAN-bridge bug surfaced; resumes from `journal_ai_reporter/src/modules/parser/llm_classifier.py`.
 - **CRDT GC enablement** — once a backup + tail-latency monitoring story exists, set `ENABLE_CRDT_GC=true` to prevent unbounded `crdt_operations` growth.
 - **Multi-replica Cloud** — replace in-memory idempotency cache with Redis; add session sticky for WS or move to Redis pub/sub fanout.
 - **WS streaming for `/report`** — Server-Sent Events on the Reporter Bridge so reports feel snappy instead of blocking ~14 s.
 - **Multi-account Diary** — drop the `sync_metadata` singleton constraint and add a profile-keyed table.
+
+### 8.3 LAN discovery — landed 2026-05-08
+
+The LAN-bridge sprint that fell out of the §8.1 sideload covers Cloud + Diary together:
+
+- **Cloud-side mDNS advertise** — `src/discovery/mdns.py` (zeroconf-backed) wires into FastAPI's lifespan so `uvicorn src.main:app …` advertises `_corneldiary._tcp.local.` automatically. No Diary-side trigger required. `DISABLE_MDNS=1` skips registration in CI / containerised runs. Lives on [`feat/mdns-advertise`](https://github.com/DenizTanisman/cloud/pull/1) — PR open, security-scan failures are unrelated CVEs in pre-existing deps (see §8.4).
+- **Interface-name filter** (Diary `commands/cloud_service.rs::is_excluded_interface` + Cloud `discovery/mdns._is_excluded_interface`). Replaces the old IP-range filter that suppressed all of `172.16/12` — that broke real LAN access on phone hotspots whose DHCP scope happens to live in the 172.x block (iOS personal hotspot 172.20.10/28; some Androids 172.18.x). Now `docker0`, `br-*`, `bridge*`, `vmnet*`, `vboxnet*`, `utun*`, `tun*`, `tap*`, `awdl*`, `llw*`, `lo*` go by name; everything else flows through.
+- **`stop_cloud_service` external-uvicorn fallback** — Diary's Stop button previously only killed its own spawn. The new Unix-only fallback uses `lsof -t :5001` + SIGTERM (SIGKILL after 800 ms) so a manually-started uvicorn dies with the button too.
+- **Mobile localhost guide** — `CloudSyncPanel` shows a 3-step Turkish guide instead of a doomed login form when the active profile points at loopback on mobile (`isMobile && (profile null OR localhost)`); guide auto-disappears when the user picks a LAN profile.
+- **Tailscale guide** — `Cloud/docs/networking/tailscale-setup.md` for the cross-network case (mobile data, foreign Wi-Fi, mDNS-blocked SSIDs). LAN + Tailscale coexist; users keep two profiles and switch on demand.
+
+### 8.4 Open items captured 2026-05-08 (carried forward)
+
+- **Cloud PR #1 merge** — `feat/mdns-advertise` is mergeable but the security workflow flags 8 CVEs in pre-existing deps (`python-dotenv 1.0.1`, `pyjwt 2.10.1`, `python-multipart 0.0.20`, `pytest 8.3.4`, `starlette 0.41.3`). All present on `main` already; the workflow just surfaced them when it ran for the first time. Decide between admin-override merge vs. a separate dep-upgrade sprint.
+- **IPv6 link-local in mDNS discover** — Diary's `discover_cloud_servers` occasionally surfaces `http://fe80::…:5001` entries that fail with `[validation] invalid url: invalid port number` (IPv6 needs `[…]` brackets, and link-local is unreachable without a zone identifier anyway). Filter IPv6 entries out of the discover list, or wrap them properly. See `cornell-diary/src-tauri/src/commands/mdns.rs::discover_cloud_servers`.
+- **Edge-to-edge Android inset** — `body[data-platform='android'] .toolbar` reserves a constant 44 px for the status bar. Replace with proper `WindowInsetsCompat` injection from `MainActivity` so notch/cutout heights are honoured exactly.
+- **Toolbar sticky on mobile** — toolbar scrolls away on phone; consider `position: sticky` so tabs stay reachable without scroll-to-top.
+- **Stale duplicate mDNS instance names** — fresh start logs show two records (`ismaildeniz Diary Cloud` + `Ismail-MacBook-Pro Diary Cloud`) until TTLs expire. Cosmetic; happens because of how the hostname is resolved (`socket.gethostname().split(".")[0]` vs. `hostname -s` differ on macOS). Pick one canonical form.
+- **`start_cloud_service_internal` dead-code warning** — single Rust release-build warning; either re-wire or delete.
+- **Gradle 8.14.3 → Gradle 9 prep** — Android build prints "Deprecated Gradle features were used" on every assemble.
 
 ---
 
