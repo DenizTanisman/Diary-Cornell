@@ -42,11 +42,19 @@ export function CloudProfileSelector() {
     setError(null);
     try {
       const list = await invoke<CloudProfile[]>('list_cloud_profiles');
-      const active = await invoke<CloudProfile>('get_active_cloud_profile');
       setProfiles(list);
-      setActiveId(active.id);
     } catch (e) {
       setError(extractDomainErrorMessage(e));
+      return;
+    }
+    // "no active cloud profile" is a normal empty state on a fresh
+    // mobile install or after the user deletes the current active
+    // row — keep activeId null and don't surface a red banner.
+    try {
+      const active = await invoke<CloudProfile>('get_active_cloud_profile');
+      setActiveId(active.id);
+    } catch {
+      setActiveId(null);
     }
   };
 
