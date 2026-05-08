@@ -235,6 +235,15 @@ pub async fn stop_cloud_service(
         let _ = child.kill().await;
         let _ = child.wait().await;
     }
+    // Fallback: if Cloud was started outside Diary (the user ran
+    // `uvicorn src.main:app …` from a terminal), the child handle is
+    // None and the kill above was a no-op. The user still pressed
+    // Stop expecting :5001 to die — find any external listener on
+    // that port and SIGTERM it (SIGKILL after 800ms if it ignores).
+    // Mac/Linux only; on Windows we log and move on.
+    if cloud_listening().await {
+        kill_external_listener(5001).await;
+    }
     if inner.started_postgres {
         // Best-effort: if postgres is unique to Diary's needs, stop the
         // container so we don't leave it running when Diary exits.
@@ -266,9 +275,8 @@ pub async fn cloud_service_status(
 /// Sprint D-1 — list every IPv4 address the host owns that another
 /// device on the LAN could reach Cloud through. Skips loopback,
 /// link-local (169.254.x.x — DHCP fallback that nobody can route to),
-/// and the full RFC1918 172.16/12 block where Docker carves bridges
-/// (172.17 default + 172.18+ for compose networks — only the host
-/// sees them).
+/// and interfaces whose *name* identifies them as virtual bridges or
+/// VPN tunnels (Docker, VirtualBox, VMware, …).
 ///
 /// The phone-from-Mac flow needs this: `localhost:5001` works on the
 /// Mac itself, but a phone has to dial the Mac's actual LAN address
@@ -282,18 +290,14 @@ pub fn get_lan_addresses() -> Result<Vec<String>, DomainError> {
 
     let mut addrs: Vec<String> = ifaces
         .into_iter()
-        .filter_map(|(_name, ip)| match ip {
-            std::net::IpAddr::V4(v4) => Some(v4),
+        .filter_map(|(name, ip)| match ip {
+            std::net::IpAddr::V4(v4) if !is_excluded_interface(&name) => Some(v4),
             // IPv6 link-local addresses are common on Mac (fe80::…) but
             // require a zone identifier to be reachable; not useful for
             // a manual "type this into your phone" flow.
             _ => None,
         })
-        .filter(|v4| {
-            !v4.is_loopback()
-                && !v4.is_link_local()
-                && !is_docker_bridge(*v4)
-        })
+        .filter(|v4| !v4.is_loopback() && !v4.is_link_local())
         .map(|v4| v4.to_string())
         .collect();
     addrs.sort();
@@ -301,22 +305,84 @@ pub fn get_lan_addresses() -> Result<Vec<String>, DomainError> {
     Ok(addrs)
 }
 
-/// Suppress 172.16.0.0/12 — RFC1918 range Docker carves into per-network
-/// virtual bridges (default `docker0` is 172.17.0.0/16, custom compose
-/// networks pile up at 172.18 / 172.19 / …). All of them are visible
-/// from the host but unroutable from any other machine on the LAN, so
-/// surfacing them in the "phone reaches me at" list (or, worse,
-/// advertising them via mDNS) leads phones to dial unreachable IPs.
-/// H-2 hot-fix: a phone that joined the user's mDNS service was
-/// picking 172.18.57.25 (Docker compose network from a sibling
-/// project) and timing out. 192.168.x and 10.x stay through this
-/// filter because real Wi-Fi / Ethernet LANs live there.
-pub(crate) fn is_docker_bridge(ip: std::net::Ipv4Addr) -> bool {
-    let [a, b, _, _] = ip.octets();
-    // 172.16.0.0/12 covers 172.16.0.0 – 172.31.255.255. Real home
-    // routers don't hand out from this block; if you see one it's
-    // overwhelmingly a container / VPN tunnel virtual interface.
-    a == 172 && (16..=31).contains(&b)
+/// Filter virtual / container / tunnel interfaces by name, not by IP
+/// range. Earlier versions blanket-suppressed the entire 172.16/12
+/// RFC1918 block to dodge Docker bridges; that backfired the moment
+/// the user joined a mobile hotspot whose DHCP scope happens to live
+/// in 172.x (e.g. iOS personal hotspot 172.20.10/28, certain Android
+/// hotspots in 172.18). Real LAN, real Wi-Fi, can't reach Cloud
+/// because we hid the only routable address.
+///
+/// Interface NAME is the right signal: `docker0`, `br-*`, `bridge*`,
+/// `vmnet*`, `vboxnet*`, `utun*`, `tun*`, `tap*`, `awdl*`, `llw*`,
+/// `lo*` are the virtual / tunnel families across macOS + Linux.
+/// Real LAN interfaces use `en*` (macOS), `eth*`/`enp*` (Linux),
+/// `wl*`/`wlan*`/`wlp*` (Wi-Fi), and pass through unchanged.
+pub(crate) fn is_excluded_interface(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.starts_with("docker")
+        || n.starts_with("br-")
+        || n.starts_with("bridge")
+        || n.starts_with("vmnet")
+        || n.starts_with("vboxnet")
+        || n.starts_with("utun")
+        || n.starts_with("tun")
+        || n.starts_with("tap")
+        || n.starts_with("awdl")
+        || n.starts_with("llw")
+        || n.starts_with("lo")
+}
+
+/// Best-effort: kill any process listening on `port` that wasn't
+/// spawned by Diary. Used as a stop_cloud_service fallback when a
+/// user starts uvicorn directly from a terminal — Diary's Stop
+/// button still does what it says on the tin. Unix-only (lsof +
+/// kill); on other platforms it's a no-op + warning.
+async fn kill_external_listener(port: u16) {
+    #[cfg(unix)]
+    {
+        use std::time::Duration;
+        let probe = || async move {
+            tokio::process::Command::new("lsof")
+                .args([
+                    "-nP",
+                    &format!("-iTCP:{port}"),
+                    "-sTCP:LISTEN",
+                    "-t",
+                ])
+                .output()
+                .await
+        };
+        let send = |sig: &str, pid: &str| {
+            let sig = sig.to_string();
+            let pid = pid.to_string();
+            async move {
+                let _ = tokio::process::Command::new("kill")
+                    .args([sig.as_str(), pid.as_str()])
+                    .status()
+                    .await;
+            }
+        };
+        let Ok(out) = probe().await else { return };
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for pid in stdout.lines().filter(|l| !l.trim().is_empty()) {
+            tracing::info!(target: "cornell_diary", pid = %pid, "stop_cloud: SIGTERM external listener");
+            send("-TERM", pid).await;
+        }
+        // Give the process a beat to wind down; SIGKILL holdouts.
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        let Ok(still) = probe().await else { return };
+        let still_out = String::from_utf8_lossy(&still.stdout);
+        for pid in still_out.lines().filter(|l| !l.trim().is_empty()) {
+            tracing::warn!(target: "cornell_diary", pid = %pid, "stop_cloud: SIGKILL external listener (TERM ignored)");
+            send("-KILL", pid).await;
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = port;
+        tracing::warn!(target: "cornell_diary", "stop_cloud: external-listener kill not implemented on this platform");
+    }
 }
 
 async fn snapshot(inner: &MutexGuard<'_, CloudInner>, healthy: bool) -> CloudServiceStatus {

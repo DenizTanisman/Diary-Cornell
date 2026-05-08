@@ -216,11 +216,11 @@ fn collect_lan_ipv4() -> Result<Vec<std::net::Ipv4Addr>, DomainError> {
         .map_err(|e| DomainError::Internal(format!("list interfaces: {e}")))?;
     let mut out: Vec<std::net::Ipv4Addr> = ifaces
         .into_iter()
-        .filter_map(|(_, ip)| match ip {
+        .filter_map(|(name, ip)| match ip {
             std::net::IpAddr::V4(v4)
                 if !v4.is_loopback()
                     && !v4.is_link_local()
-                    && !is_docker_bridge(v4) =>
+                    && !is_excluded_interface(&name) =>
             {
                 Some(v4)
             }
@@ -232,10 +232,9 @@ fn collect_lan_ipv4() -> Result<Vec<std::net::Ipv4Addr>, DomainError> {
     Ok(out)
 }
 
-// Reuse the cloud_service helper so the mDNS advertise list and the
-// "reachable from phone" picker apply the same filter. Both used to
-// suppress only 172.17.0.0/16 (default docker0); H-2 widened to the
-// full RFC1918 172.16/12 block after a Samsung Galaxy on the user's
-// LAN dialed 172.18.57.25 (a sibling project's docker-compose
-// network) for /auth/login and timed out.
-use crate::commands::cloud_service::is_docker_bridge;
+// Share cloud_service's interface-name filter so the mDNS advertise
+// list and the "reachable from phone" picker stay in lock-step. The
+// previous IP-range filter blanket-suppressed 172.16/12 and broke
+// mobile-hotspot LANs that hand out from that block — see the
+// is_excluded_interface doc comment in cloud_service.rs.
+use crate::commands::cloud_service::is_excluded_interface;
